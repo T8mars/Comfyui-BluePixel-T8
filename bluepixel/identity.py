@@ -1,7 +1,14 @@
 """Bind cached components to the artifact version they actually loaded."""
 
 from pathlib import Path
+from functools import partial
 from .artifacts import sha256_file
+
+
+def register_patcher_loader(patcher, loader, path, **options):
+    # ComfyUI reloads through this factory when a clone needs independent weights.
+    # Keyword binding allows clone(disable_dynamic=True) to override the default.
+    patcher.cached_patcher_init = (partial(loader, **options), (str(Path(path).resolve()),))
 
 
 def file_stamp(path):

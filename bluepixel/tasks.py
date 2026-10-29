@@ -1,7 +1,7 @@
 """Cross-platform, content-addressed batch tasks with process-owned locks."""
 
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
 import os
@@ -94,11 +94,22 @@ class Task:
     instruction: str
     seed: int
     config_fingerprint: str
+    source_jsonl: str | None = None
+    input_aliases: tuple[str, ...] = ()
 
 
 def plan_tasks(jsonl_path, seeds, config, instruction_field="edit_prompt", limit=None):
     path = Path(jsonl_path).resolve(strict=True)
-    seeds = [int(seed) for seed in seeds]
+    normalized_seeds = []
+    for seed in seeds:
+        try:
+            value = int(seed)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise ValueError("Seeds must be unsigned 64-bit integers") from error
+        if isinstance(seed, bool) or (not isinstance(seed, str) and value != seed):
+            raise ValueError("Seeds must be unsigned 64-bit integers")
+        normalized_seeds.append(value)
+    seeds = normalized_seeds
     if not seeds:
         raise ValueError("At least one seed is required")
     if any(seed < 0 or seed > 0xffffffffffffffff for seed in seeds):
@@ -131,10 +142,18 @@ def plan_tasks(jsonl_path, seeds, config, instruction_field="edit_prompt", limit
                 identity = {"image_sha256": image_hash, "instruction": instruction,
                             "seed": seed, "config_fingerprint": config_id}
                 tasks.append(Task(fingerprint(identity), str(image), image_hash,
-                                  instruction, seed, config_id))
+                                  instruction, seed, config_id, str(path)))
             source_rows += 1
     # Identical rows are a single content-addressed task, not concurrent duplicate writes.
-    return list({task.task_id: task for task in tasks}.values())
+    unique, aliases = {}, {}
+    for task in tasks:
+        previous = unique.get(task.task_id)
+        if previous is not None:
+            paths = aliases.setdefault(task.task_id, {previous.image_path: None})
+            paths[task.image_path] = None
+        unique[task.task_id] = task
+    return [replace(task, input_aliases=tuple(aliases[identity])) if identity in aliases else task
+            for identity, task in unique.items()]
 
 
 class TaskStore:
@@ -151,6 +170,50 @@ class TaskStore:
         for folder in folders:
             (self.directory / folder).mkdir(parents=True, exist_ok=True)
         self.owner = f"{socket.gethostname()}:{os.getpid()}"
+
+    def validate_task_paths(self, tasks, outputs=()):
+        """Keep writable batch artifacts separate from every planned input."""
+        tasks = list(tasks)
+        cache = {}
+
+        def identity(value):
+            path = Path(value)
+            if path not in cache:
+                resolved = path.resolve()
+                try:
+                    stat = resolved.stat()
+                except FileNotFoundError:
+                    inode = None
+                else:
+                    inode = (stat.st_dev, stat.st_ino) if stat.st_ino else None
+                cache[path] = resolved, inode
+            return cache[path]
+
+        input_paths, input_inodes = set(), set()
+        for task in tasks:
+            for source in (task.image_path, getattr(task, "source_jsonl", None),
+                           *getattr(task, "input_aliases", ())):
+                if source is None:
+                    continue
+                path, inode = identity(source)
+                input_paths.add(path)
+                if inode is not None:
+                    input_inodes.add(inode)
+
+        def overlaps_input(value):
+            path, inode = value
+            return path in input_paths or inode is not None and inode in input_inodes
+
+        metadata_identity = identity(self.metadata)
+        if overlaps_input(metadata_identity):
+            raise ValueError("Batch metadata must not overwrite an input image or source JSONL")
+        for output in [*(self.output_path(task) for task in tasks), *outputs]:
+            output_identity = identity(output)
+            if overlaps_input(output_identity):
+                raise ValueError("Batch output must not overwrite an input image or source JSONL")
+            if (output_identity[0] == metadata_identity[0] or
+                    output_identity[1] is not None and output_identity[1] == metadata_identity[1]):
+                raise ValueError("Batch metadata and output paths must be different")
 
     def register_config(self, config):
         identity = fingerprint(config)
@@ -211,7 +274,9 @@ class TaskStore:
     def record(self, task, status, output=None, error=None, **metadata):
         if status not in {"success", "failed"}:
             raise ValueError("Task status must be success or failed")
-        record = {**metadata, **asdict(task), "status": status, "owner": self.owner, "timestamp": time.time()}
+        self.validate_task_paths([task], outputs=[output] if status == "success" and output is not None else [])
+        record = {**metadata, **asdict(task), "input_aliases": list(task.input_aliases),
+                  "status": status, "owner": self.owner, "timestamp": time.time()}
         if status == "success":
             output = Path(output).resolve(strict=True)
             if not output.is_relative_to(self.directory):

@@ -22,6 +22,22 @@ def test_content_identity_tracks_model_image_instruction_and_seed(tmp_path):
     assert replanned[0].task_id != tasks[0].task_id
 
 
+@pytest.mark.parametrize("seed", [42.9, -0.5, True, False, float("nan"), float("inf"), None])
+def test_invalid_seeds_are_not_silently_coerced(tmp_path, seed):
+    make_plan(tmp_path)
+    with pytest.raises(ValueError, match="unsigned 64-bit integers"):
+        plan_tasks(tmp_path / "tasks.jsonl", [seed], {})
+
+
+def test_integral_seed_forms_keep_the_same_task_identity(tmp_path):
+    make_plan(tmp_path)
+    tasks = [plan_tasks(tmp_path / "tasks.jsonl", [seed], {})[0]
+             for seed in (42, 42.0, "42")]
+    assert {task.seed for task in tasks} == {42}
+    assert len({task.task_id for task in tasks}) == 1
+    assert plan_tasks(tmp_path / "tasks.jsonl", [0, 2**64 - 1], {})[-1].seed == 2**64 - 1
+
+
 def test_task_lock_resume_failed_retry_and_corruption(tmp_path):
     tasks = make_plan(tmp_path)
     store = TaskStore(tmp_path / "output")

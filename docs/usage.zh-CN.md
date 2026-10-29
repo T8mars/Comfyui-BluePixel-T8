@@ -98,6 +98,8 @@ python tools/run_batch.py --comfyui D:/ComfyUI --diffusion D:/ComfyUI/models/dif
 
 TaskPlan 的 `diffusion_dtype` 必须与扩散Loader的 `dtype` 一致；CLI对应 `--diffusion-dtype default|bf16|fp32`。不同显式精度使用独立任务身份，默认精度保留已有任务指纹。日志断尾会在追加前恢复，NaN/Inf图像会作为失败处理，避免保存黑图后跳过重试。更新插件后请重启ComfyUI，以建立加载精度记录。
 
+日志和输出路径不能与任何计划输入图片或源JSONL重叠，硬链接别名同样会被拒绝；CLI在加载模型前检查。seed必须是0到2^64−1的整数值，不能用小数截断代替整数。三个Loader的重载工厂会保留BluePixel适配设置，用于ComfyUI需要独立权重的深克隆；多GPU运行仍需在相应硬件验证。
+
 `BluePixelTaskPlan` 不加载神经网络即可生成任务计划；图内 `BluePixelBatchRun` 连接真实组件执行。图内 dry-run 不会采样，但已经连接的 Loader 仍由 ComfyUI 按图依赖执行；完全不加载模型请使用 CLI dry-run 或只执行 TaskPlan。
 
 高级接口见 [高级输入与回调](advanced.md)。`BluePixelPackLatent` / `BluePixelUnpackLatent` 在上游 packed tokens 和 ComfyUI 空间 latent 之间显式转换；`BluePixelSeedListNoise` 接官方采样节点，要求 seed 数等于 latent batch。

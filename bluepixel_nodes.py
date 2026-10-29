@@ -353,6 +353,7 @@ class BluePixelBatchRun:
         directory = Path(output_dir)
         if not directory.is_absolute():
             directory = Path(folder_paths.get_output_directory()) / directory
+        TaskStore(directory, metadata_file).validate_task_paths(plan["tasks"])
         if dry_run:
             result = {"dry_run": True, **TaskStore(directory, metadata_file).status(plan["tasks"])}
         else:

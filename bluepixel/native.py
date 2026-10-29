@@ -10,7 +10,7 @@ import comfy.model_patcher
 import comfy.sd
 import comfy.utils
 from .artifacts import read_header
-from .identity import file_stamp, mark_loaded
+from .identity import file_stamp, mark_loaded, register_patcher_loader
 from .config import CHAT_TEMPLATE, CONTEXT_DIM, FORMAT_VERSION, LATENT_CHANNELS, LATENT_SCALE, SPATIAL_RATIO
 
 
@@ -74,6 +74,8 @@ def load_diffusion(path, dtype="default", disable_dynamic=False):
     model.bluepixel_metadata = metadata
     mark_loaded(model, path, before)
     model.bluepixel_load_dtype = dtype
+    register_patcher_loader(model, load_diffusion, model.bluepixel_path,
+                            dtype=dtype, disable_dynamic=disable_dynamic)
     logging.info("BluePixel: %s; f64 latents; %d native quantized layers", metadata["bluepixel.precision"], len(quantized))
     return model
 
@@ -106,7 +108,7 @@ class BluePixelTokenizer:
         return self.backend.decode([token[0] for token in token_weight_pair])
 
 
-def load_clip(path, device="default"):
+def load_clip(path, device="default", disable_dynamic=False):
     before = file_stamp(path)
     artifact_metadata(path, "text_encoder")
     state, metadata = comfy.utils.load_torch_file(str(path), safe_load=True, return_metadata=True)
@@ -118,7 +120,7 @@ def load_clip(path, device="default"):
     if device == "cpu":
         options.update(load_device=torch.device("cpu"), offload_device=torch.device("cpu"))
     clip = comfy.sd.load_text_encoder_state_dicts([state], clip_type=comfy.sd.CLIPType.FLUX2,
-                                                model_options=options)
+                                                model_options=options, disable_dynamic=disable_dynamic)
     # Generic CLIP uses FP32 token embeddings/activations. The published Qwen
     # reference uses BF16; padding hidden states can differ substantially if we
     # silently keep the generic activation convention.
@@ -129,7 +131,13 @@ def load_clip(path, device="default"):
     clip.patcher.set_model_compute_dtype(torch.bfloat16)
     clip.tokenizer = BluePixelTokenizer(serialized.numpy().tobytes().decode("utf-8"))
     mark_loaded(clip, path, before)
+    register_patcher_loader(clip.patcher, _load_clip_patcher, clip.bluepixel_path,
+                            device=device, disable_dynamic=disable_dynamic)
     return clip
+
+
+def _load_clip_patcher(path, device="default", disable_dynamic=False):
+    return load_clip(path, device, disable_dynamic).patcher
 
 
 class DCAEComponent(torch.nn.Module):
@@ -197,6 +205,7 @@ class BluePixelVAE(comfy.sd.VAE):
         mm.archive_model_dtypes(self.first_stage_model)
         self.model_size()
         mark_loaded(self, path, before)
+        register_patcher_loader(self.patcher, _load_vae_patcher, self.bluepixel_path, tiling=tiling)
 
     def _source_tiling(self, samples, encode, tile_x, tile_y, overlap):
         autoencoder = self.first_stage_model.autoencoder
@@ -226,3 +235,8 @@ class BluePixelVAE(comfy.sd.VAE):
 
     def decode_tiled_(self, samples, tile_x=8, tile_y=8, overlap=1):
         return self._source_tiling(samples, False, tile_x, tile_y, overlap)
+
+
+def _load_vae_patcher(path, tiling=False, disable_dynamic=False):
+    # This bridge already uses the non-dynamic ModelPatcher for every instance.
+    return BluePixelVAE(path, tiling).patcher

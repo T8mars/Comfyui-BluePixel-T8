@@ -130,6 +130,7 @@ def save_png_atomic(image, path, metadata=None):
 def run_tasks(tasks, output_dir, model, clip, vae, settings, resume=True,
               metadata_file="metadata.jsonl", lock_timeout=0, fail_fast=False, progress=None, config=None):
     store = TaskStore(output_dir, metadata_file)
+    store.validate_task_paths(tasks)
     if config is not None:
         identity = store.register_config(config)
         if any(task.config_fingerprint != identity for task in tasks):
