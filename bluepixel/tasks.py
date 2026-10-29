@@ -142,7 +142,8 @@ class TaskStore:
         self.directory = Path(directory).resolve()
         filename = Path(metadata_file)
         folders = ("_locks", "_done", "_workers", "_configs", "img")
-        if not metadata_file or filename.name != metadata_file or filename.is_absolute() or filename.name in folders:
+        if (not metadata_file or filename.name != metadata_file or filename.is_absolute()
+                or filename.name.casefold() in folders):
             raise ValueError("metadata_file must be a plain filename")
         self.metadata = self.directory / filename
         if self.metadata.is_dir():

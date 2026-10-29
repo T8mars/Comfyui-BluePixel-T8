@@ -129,6 +129,13 @@ def test_metadata_tail_recovery_does_not_read_entire_log():
     assert stream.bytes_read <= 8193
 
 
+@pytest.mark.parametrize("filename", ["_LOCKS", "_DONE", "_WORKERS", "_CONFIGS", "IMG"])
+def test_metadata_internal_names_are_reserved_case_insensitively(tmp_path, filename):
+    # On Windows these names alias the directories created by this constructor.
+    with pytest.raises(ValueError, match="plain filename"):
+        TaskStore(tmp_path / "fresh-output", filename)
+
+
 def test_graph_cli_defaults_have_identical_task_identity():
     graph = inference_config({"guidance": 3, "shift": 0}, {"diffusion": "sha"})
     cli = inference_config({"guidance": 3.0, "shift": 0.0}, {"diffusion": "sha"}, True)
