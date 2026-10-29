@@ -55,6 +55,80 @@ def test_metadata_stays_under_output_directory(tmp_path):
         TaskStore(tmp_path / "output", "../escaped.jsonl")
 
 
+@pytest.mark.parametrize("filename", ["", "img", "_locks"])
+def test_invalid_metadata_filename_is_rejected_before_execution(tmp_path, filename):
+    with pytest.raises(ValueError, match="metadata_file"):
+        TaskStore(tmp_path / "output", filename)
+
+
+def test_metadata_filename_cannot_name_existing_directory(tmp_path):
+    directory = tmp_path / "output"
+    (directory / "metadata.jsonl").mkdir(parents=True)
+    with pytest.raises(ValueError, match="metadata_file"):
+        TaskStore(directory)
+
+
+def test_task_lock_releases_even_if_owner_lease_cleanup_fails(tmp_path, monkeypatch):
+    from filelock import FileLock
+    task = make_plan(tmp_path)[0]
+    store = TaskStore(tmp_path / "output")
+    original_unlink = Path.unlink
+
+    def fail_owner_unlink(path, *args, **kwargs):
+        if path.name.endswith(".owner.json"):
+            raise PermissionError("injected owner lease cleanup failure")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_owner_unlink)
+    with pytest.raises(PermissionError, match="owner lease") as retained_error:
+        with store.claim(task) as acquired:
+            assert acquired
+    # Retain the exception and its traceback: release must not rely on object GC.
+    assert retained_error.value is not None
+    with FileLock(str(store.directory / "_locks" / (task.task_id + ".lock")), timeout=0):
+        pass
+
+
+@pytest.mark.parametrize("prefix,previous", [
+    (b'{"status":"suc', []),
+    (b'{"instruction":"\xe4\xb8', []),
+    (b'{"previous":"kept"}', [{"previous": "kept"}]),
+    (b'{"previous":"kept"}\n{"partial"', [{"previous": "kept"}]),
+    (b'{"previous":"kept"}\n' + json.dumps({"long": "中" * 5000}, ensure_ascii=False).encode("utf-8"),
+     [{"previous": "kept"}, {"long": "中" * 5000}]),
+], ids=["partial-json", "partial-utf8", "json-no-newline", "preserve-history", "long-unicode-tail"])
+def test_metadata_append_recovers_unfinished_tail(tmp_path, prefix, previous):
+    task = make_plan(tmp_path)[0]
+    store = TaskStore(tmp_path / "output")
+    store.metadata.write_bytes(prefix)
+    output = store.output_path(task)
+    output.write_bytes(b"result")
+    record = store.record(task, "success", output)
+    records = [json.loads(line) for line in store.metadata.read_text(encoding="utf-8").splitlines()]
+    assert records == previous + [record]
+    assert store.is_done(task)
+
+
+def test_metadata_tail_recovery_does_not_read_entire_log():
+    from io import BytesIO
+    from bluepixel.tasks import _recover_metadata_tail
+
+    class ReadCountingStream(BytesIO):
+        bytes_read = 0
+
+        def read(self, size=-1):
+            assert size >= 0
+            result = super().read(size)
+            self.bytes_read += len(result)
+            return result
+
+    prior = b'{"previous":"kept"}\n' * 200000
+    stream = ReadCountingStream(prior + b'{"partial"')
+    _recover_metadata_tail(stream)
+    assert stream.getvalue() == prior
+    assert stream.bytes_read <= 8193
+
+
 def test_graph_cli_defaults_have_identical_task_identity():
     graph = inference_config({"guidance": 3, "shift": 0}, {"diffusion": "sha"})
     cli = inference_config({"guidance": 3.0, "shift": 0.0}, {"diffusion": "sha"}, True)

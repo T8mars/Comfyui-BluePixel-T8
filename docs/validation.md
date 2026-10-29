@@ -14,7 +14,7 @@
 
 ## 已执行的正确性检查
 
-- 完整单测124项通过（首次发布107项，v0.1.2新增17项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
+- 完整单测149项通过（首次发布107项，v0.1.2新增17项，v0.1.3新增25项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
 - 3种scheduler × 6种token length × 4种steps逐项对照Diffusers，包含4300/4301分段与终点0。
 - 小型Flux2带参考图与四维IDs，Diffusers/ComfyUI CPU FP32前向：max abs `2.980232238769531e-7`，relative L2 `1.0175625675401534e-7`。
 - 全量INT8骨干前向finite；Profiler记录121次 `comfy_kitchen::int8_linear` 和121次 `aten::_int_mm`，峰值9,821,536,768 bytes。并非仅INT8存储或浮点模拟。
@@ -41,6 +41,22 @@
 本轮完整测试124项通过，包含CPU小矩阵和已有微型CUDA RoPE对照；独立进程锁与崩溃恢复再次通过。真实Comfy节点选项检查使用CPU、未加载权重。隐藏GPU时曾遇到宿主xformers/Triton导入限制，最终使用原有环境完成全部测试，没有改动共享依赖。以下完整权重、API和4K数据来自首次发布的GPU验证，本轮未重复执行。
 
 更新插件后请重启ComfyUI，以使三个Loader建立新的模型文件身份记录；现有分体模型文件兼容此版本。
+
+## v0.1.3 第二次20轮复查
+
+再次由主 Agent 与独立子 Agent 完成20轮检查，新增25项回归，修复7类问题：
+
+| 问题 | 修复与验证 |
+| --- | --- |
+| 合法旧格式SFT `.pt` 无法加载 | 根据文件格式选择mmap，旧式PyTorch序列化小权重实际加载与合并通过 |
+| 清理owner记录异常可能遗留OS锁 | 内层finally保证释放；注入PermissionError并保留异常traceback后，第二个FileLock仍可成功获取 |
+| 空或目录日志名直到写结果才失败 | TaskStore初始化时校验空名称、内部目录和已有目录 |
+| 崩溃留下的JSONL断尾破坏后续日志 | 在metadata锁内反向分块修复尾行，保留完整历史；partial JSON、partial UTF8、完整无换行、长Unicode和大台账读量均覆盖 |
+| 计算精度未进入续跑身份，等价步数格式产生不同身份 | 计划记录非默认diffusion_dtype并校验连接模型；default保留旧指纹，4与4.0统一；三精度CLI/图实际task_id一致 |
+| 批任务将NaN/Inf输出保存成黑PNG并标记成功 | 在像素转换前拒绝非有限值；输入参考图和批任务PNG保存均覆盖，已有有效文件不会被替换 |
+| BF16图像转换到NumPy报错 | 先保值转换为FP32；预处理和PNG均与同值FP32输入逐一一致 |
+
+本轮149项测试通过（9.91秒），真实Comfy CPU接口导入20节点，使用小文件和模拟组件验证了旧版误接精度及新版拒绝行为，未加载完整权重。安装包、模型文件头和跨进程锁另行检查；原有4K/API/GPU采样记录仍为首次发布的验证结果，本轮没有重复完整生成。
 
 ## 完整编辑与BF16对照
 

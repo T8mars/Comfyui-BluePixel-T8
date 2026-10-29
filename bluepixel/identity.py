@@ -17,11 +17,13 @@ def mark_loaded(component, path, before):
     component.bluepixel_file_stamp = before
 
 
-def verify_loaded(component, expected_hash, label):
+def verify_loaded(component, expected_hash, label, load_dtype=None):
     path = getattr(component, "bluepixel_path", None)
     before = getattr(component, "bluepixel_file_stamp", None)
     if path is None or before is None:
         raise ValueError(f"Reload the BluePixel {label} component before running this task plan")
+    if load_dtype is not None and getattr(component, "bluepixel_load_dtype", None) != load_dtype:
+        raise ValueError(f"Connected {label} dtype differs from the task plan; select the planned dtype and reload")
     if file_stamp(path) != before:
         raise ValueError(f"The {label} file changed after loading; reload it and replan the batch")
     matches = sha256_file(path) == expected_hash

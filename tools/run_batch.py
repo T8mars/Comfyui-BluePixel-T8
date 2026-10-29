@@ -12,6 +12,7 @@ def main():
     parser.add_argument("--diffusion", type=Path)
     parser.add_argument("--text-encoder", type=Path)
     parser.add_argument("--vae", type=Path)
+    parser.add_argument("--diffusion-dtype", choices=["default", "bf16", "fp32"], default="default")
     parser.add_argument("--jsonl", type=Path)
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--instruction-field", default="edit_prompt")
@@ -58,7 +59,8 @@ def main():
                 "width": args.width, "height": args.height, "mu_mode": args.mu_mode,
                 "shift": args.shift, "noise_mode": args.noise_mode}
     config = inference_config(settings, {key: sha256_file(path) for key, path in
-                 [("diffusion", args.diffusion), ("text_encoder", args.text_encoder), ("vae", args.vae)]}, args.vae_tiling)
+                 [("diffusion", args.diffusion), ("text_encoder", args.text_encoder), ("vae", args.vae)]}, args.vae_tiling,
+                 args.diffusion_dtype)
     seeds = [int(item.strip()) for item in args.seeds.split(",")] if args.seeds is not None else [args.seed]
     tasks = plan_tasks(args.jsonl, seeds, config, args.instruction_field, args.limit)
     store = TaskStore(args.out_dir, args.metadata_file)
@@ -79,7 +81,7 @@ def main():
     comfy.options.args_parsing = False
     from bluepixel.native import load_diffusion, load_clip, BluePixelVAE
     from bluepixel.execution import run_tasks
-    model = load_diffusion(args.diffusion)
+    model = load_diffusion(args.diffusion, args.diffusion_dtype)
     clip = load_clip(args.text_encoder)
     vae = BluePixelVAE(args.vae, args.vae_tiling)
     result = run_tasks(tasks, args.out_dir, model, clip, vae, settings, not args.no_resume,

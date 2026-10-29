@@ -6,6 +6,18 @@ from PIL import Image
 import torch
 
 
+def image_to_uint8(image):
+    if not image.is_floating_point():
+        raise ValueError("Image pixels must be finite floating-point values")
+    pixels = image.detach().cpu()
+    if not torch.isfinite(pixels).all():
+        raise ValueError("Image pixels must be finite floating-point values")
+    # NumPy cannot represent bfloat16; preserve its values in float32 first.
+    if pixels.dtype == torch.bfloat16:
+        pixels = pixels.float()
+    return (pixels.clamp(0, 1).numpy() * 255.0).round().astype(np.uint8)
+
+
 def select_size(width, height, target_pixels=0):
     if width < 1 or height < 1 or target_pixels < 0:
         raise ValueError("Image dimensions must be positive and target_pixels non-negative")
@@ -40,7 +52,7 @@ def prepare_image(images, target_pixels=0, output_width=0, output_height=0):
         raise ValueError("Output width and height must be positive multiples of 64")
     prepared = []
     for image in images:
-        pixels = (image[..., :3].detach().cpu().clamp(0, 1).numpy() * 255).round().astype(np.uint8)
+        pixels = image_to_uint8(image[..., :3])
         pil = Image.fromarray(pixels, "RGB").resize((selected_width, selected_height), Image.Resampling.LANCZOS)
         if pil.size != (processed_width, processed_height):
             pil = pil.resize((processed_width, processed_height), Image.Resampling.LANCZOS)

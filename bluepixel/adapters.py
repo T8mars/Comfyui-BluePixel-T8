@@ -4,6 +4,7 @@ import json
 import math
 from pathlib import Path
 import re
+import zipfile
 import torch
 from safetensors import safe_open
 from .artifacts import sha256_file
@@ -23,7 +24,8 @@ class SFTOverlay:
             self.reader = safe_open(str(self.path), framework="pt", device="cpu")
             keys = self.reader.keys()
         else:
-            self.state = torch.load(str(self.path), map_location="cpu", weights_only=True, mmap=True)
+            self.state = torch.load(str(self.path), map_location="cpu", weights_only=True,
+                                    mmap=zipfile.is_zipfile(self.path))
             if "state_dict" in self.state:
                 self.state = self.state["state_dict"]
             keys = self.state.keys()

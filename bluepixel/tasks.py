@@ -17,16 +17,17 @@ INFERENCE_DEFAULTS = {"steps": 4, "guidance": 3.0, "target_pixels": 16777216,
     "noise_mode": "upstream_cuda_bf16"}
 
 
-def inference_config(settings, model_hashes, vae_tiling=True):
+def inference_config(settings, model_hashes, vae_tiling=True, diffusion_dtype="default"):
     if not isinstance(settings, dict) or set(settings) - set(INFERENCE_DEFAULTS):
         raise ValueError(f"Unknown inference settings; allowed: {sorted(INFERENCE_DEFAULTS)}")
     resolved = {**INFERENCE_DEFAULTS, **settings}
-    from .scheduling import schedule_values
+    from .scheduling import schedule_values, positive_int
     import math
     for name in ("guidance", "shift"):
         if isinstance(resolved[name], bool) or not isinstance(resolved[name], (int, float)):
             raise ValueError(f"{name} must be numeric")
         resolved[name] = float(resolved[name])
+    resolved["steps"] = positive_int(resolved["steps"], "steps")
     schedule_values(resolved["steps"], 1, resolved["mu_mode"], resolved["shift"])
     if not math.isfinite(resolved["guidance"]) or resolved["guidance"] < 0:
         raise ValueError("guidance must be finite and non-negative")
@@ -38,13 +39,51 @@ def inference_config(settings, model_hashes, vae_tiling=True):
             raise ValueError(f"{name} must be zero or a positive multiple of64")
     if resolved["noise_mode"] not in {"upstream_cuda_bf16", "comfy_cpu"}:
         raise ValueError("Unknown noise mode")
-    return {"pipeline_version": 1, "settings": resolved, "model_hashes": dict(model_hashes),
-            "vae_tiling": bool(vae_tiling)}
+    if diffusion_dtype not in {"default", "bf16", "fp32"}:
+        raise ValueError("diffusion_dtype must be default, bf16 or fp32")
+    config = {"pipeline_version": 1, "settings": resolved, "model_hashes": dict(model_hashes),
+              "vae_tiling": bool(vae_tiling)}
+    # Keep existing default-mode task fingerprints compatible.
+    if diffusion_dtype != "default":
+        config["diffusion_dtype"] = diffusion_dtype
+    return config
 
 
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
                                     separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+
+
+def _recover_metadata_tail(stream):
+    """Repair only an unfinished final JSONL entry while holding metadata.lock."""
+    stream.seek(0, os.SEEK_END)
+    end = stream.tell()
+    if not end:
+        return
+    stream.seek(end - 1)
+    if stream.read(1) == b"\n":
+        return
+    cursor, chunks, tail_start = end, [], 0
+    while cursor:
+        start = max(0, cursor - 8192)
+        stream.seek(start)
+        chunk = stream.read(cursor - start)
+        newline = chunk.rfind(b"\n")
+        if newline >= 0:
+            tail_start = start + newline + 1
+            chunks.append(chunk[newline + 1:])
+            break
+        chunks.append(chunk)
+        cursor = start
+    tail = b"".join(reversed(chunks))
+    try:
+        json.loads(tail.decode("utf-8"))
+    except (ValueError, UnicodeError):
+        stream.truncate(tail_start)
+    else:
+        stream.seek(0, os.SEEK_END)
+        stream.write(b"\n")
+    stream.seek(0, os.SEEK_END)
 
 
 @dataclass(frozen=True)
@@ -102,10 +141,13 @@ class TaskStore:
     def __init__(self, directory, metadata_file="metadata.jsonl"):
         self.directory = Path(directory).resolve()
         filename = Path(metadata_file)
-        if filename.name != metadata_file or filename.is_absolute():
+        folders = ("_locks", "_done", "_workers", "_configs", "img")
+        if not metadata_file or filename.name != metadata_file or filename.is_absolute() or filename.name in folders:
             raise ValueError("metadata_file must be a plain filename")
         self.metadata = self.directory / filename
-        for folder in ("_locks", "_done", "_workers", "_configs", "img"):
+        if self.metadata.is_dir():
+            raise ValueError("metadata_file must name a file, not an existing directory")
+        for folder in folders:
             (self.directory / folder).mkdir(parents=True, exist_ok=True)
         self.owner = f"{socket.gethostname()}:{os.getpid()}"
 
@@ -160,8 +202,10 @@ class TaskStore:
             yield True
         finally:
             if acquired:
-                lock_path.with_suffix(".owner.json").unlink(missing_ok=True)
-                lock.release()
+                try:
+                    lock_path.with_suffix(".owner.json").unlink(missing_ok=True)
+                finally:
+                    lock.release()
 
     def record(self, task, status, output=None, error=None, **metadata):
         if status not in {"success", "failed"}:
@@ -174,9 +218,11 @@ class TaskStore:
             record.update(output=str(output), output_sha256=sha256_file(output))
         elif error is not None:
             record["error"] = str(error)
+        payload = (json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
         with FileLock(str(self.directory / "_locks" / "metadata.lock"), timeout=60):
-            with self.metadata.open("a", encoding="utf-8", newline="\n") as stream:
-                stream.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+            with self.metadata.open("a+b") as stream:
+                _recover_metadata_tail(stream)
+                stream.write(payload)
                 stream.flush()
                 os.fsync(stream.fileno())
             atomic_json(self.done_path(task), record)

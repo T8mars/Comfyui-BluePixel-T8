@@ -73,6 +73,7 @@ def load_diffusion(path, dtype="default", disable_dynamic=False):
     model.set_model_sampler_post_cfg_function(source_post_cfg)
     model.bluepixel_metadata = metadata
     mark_loaded(model, path, before)
+    model.bluepixel_load_dtype = dtype
     logging.info("BluePixel: %s; f64 latents; %d native quantized layers", metadata["bluepixel.precision"], len(quantized))
     return model
 

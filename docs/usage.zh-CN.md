@@ -96,6 +96,8 @@ python tools/run_batch.py --comfyui D:/ComfyUI --diffusion D:/ComfyUI/models/dif
 
 任务身份包含图片内容、指令、seed、模型文件内容哈希和推理设置。成功输出经过校验才跳过，删除/损坏结果会重新执行；失败任务可以重跑。跨进程锁由操作系统持有，不能仅因时间戳较旧就抢走仍存活任务。共享网络盘还需在该盘验证文件锁语义。多 GPU 使用各自的 runner 进程和 `--device-id`，不在一个图节点内启动隐式 worker。
 
+TaskPlan 的 `diffusion_dtype` 必须与扩散Loader的 `dtype` 一致；CLI对应 `--diffusion-dtype default|bf16|fp32`。不同显式精度使用独立任务身份，默认精度保留已有任务指纹。日志断尾会在追加前恢复，NaN/Inf图像会作为失败处理，避免保存黑图后跳过重试。更新插件后请重启ComfyUI，以建立加载精度记录。
+
 `BluePixelTaskPlan` 不加载神经网络即可生成任务计划；图内 `BluePixelBatchRun` 连接真实组件执行。图内 dry-run 不会采样，但已经连接的 Loader 仍由 ComfyUI 按图依赖执行；完全不加载模型请使用 CLI dry-run 或只执行 TaskPlan。
 
 高级接口见 [高级输入与回调](advanced.md)。`BluePixelPackLatent` / `BluePixelUnpackLatent` 在上游 packed tokens 和 ComfyUI 空间 latent 之间显式转换；`BluePixelSeedListNoise` 接官方采样节点，要求 seed 数等于 latent batch。

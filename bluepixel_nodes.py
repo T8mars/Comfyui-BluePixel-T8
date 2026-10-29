@@ -296,7 +296,8 @@ class BluePixelTaskPlan:
             "limit": ("INT", {"default": 0, "min": 0, "max": 10000000}),
             "vae_tiling": ("BOOLEAN", {"default": True}),
             "settings_json": ("STRING", {"multiline": True,
-                "default": '{"steps":4,"guidance":3.0,"target_pixels":16777216,"mu_mode":"empirical","shift":0.0}'})}}
+                "default": '{"steps":4,"guidance":3.0,"target_pixels":16777216,"mu_mode":"empirical","shift":0.0}'})},
+            "optional": {"diffusion_dtype": (["default", "bf16", "fp32"],)}}
     RETURN_TYPES = ("BLUEPIXEL_TASK_PLAN", "STRING")
     FUNCTION = "plan"
     CATEGORY = "BluePixel/batch"
@@ -306,7 +307,8 @@ class BluePixelTaskPlan:
         return float("nan")
 
     def plan(self, jsonl_path, diffusion_name, text_encoder_name, vae_name, seeds="42",
-             instruction_field="edit_prompt", limit=0, settings_json="{}", vae_tiling=True):
+             instruction_field="edit_prompt", limit=0, settings_json="{}", vae_tiling=True,
+             diffusion_dtype="default"):
         from .bluepixel.artifacts import sha256_file
         from .bluepixel.tasks import plan_tasks, inference_config
         settings = json.loads(settings_json)
@@ -317,7 +319,7 @@ class BluePixelTaskPlan:
                  "text_encoder": folder_paths.get_full_path_or_raise("text_encoders", text_encoder_name),
                  "vae": folder_paths.get_full_path_or_raise("vae", vae_name)}
         identities = {key: sha256_file(path) for key, path in paths.items()}
-        config = inference_config(settings, identities, vae_tiling)
+        config = inference_config(settings, identities, vae_tiling, diffusion_dtype)
         settings = config["settings"]
         tasks = plan_tasks(jsonl_path, [int(value.strip()) for value in seeds.split(",")],
                            config, instruction_field, limit or None)
@@ -357,7 +359,8 @@ class BluePixelBatchRun:
             if bool(vae.first_stage_model.autoencoder.use_tiling) != plan["config"]["vae_tiling"]:
                 raise ValueError("Connected VAE tiling differs from the task plan; replan before running")
             for key, component in (("diffusion", model), ("text_encoder", clip), ("vae", vae)):
-                verify_loaded(component, plan["model_hashes"][key], key)
+                dtype = plan["config"].get("diffusion_dtype", "default") if key == "diffusion" else None
+                verify_loaded(component, plan["model_hashes"][key], key, load_dtype=dtype)
             result = run_tasks(plan["tasks"], directory, model, clip, vae, plan["settings"],
                                resume, metadata_file, lock_timeout, config=plan["config"])
         text = json.dumps(result, ensure_ascii=False)

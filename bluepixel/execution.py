@@ -11,7 +11,7 @@ import torch
 
 from .artifacts import sha256_file
 from .config import DEFAULT_PIXELS
-from .image import prepare_image
+from .image import prepare_image, image_to_uint8
 from .scheduling import schedule_values
 from .tasks import TaskStore, plan_tasks
 from .conditioning import append_references
@@ -109,9 +109,9 @@ def run_edit(model, clip, vae, instruction, image=None, steps=4, guidance=3.0,
 
 def save_png_atomic(image, path, metadata=None):
     from PIL.PngImagePlugin import PngInfo
+    pixels = image_to_uint8(image)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    pixels = (image.detach().cpu().clamp(0, 1).numpy() * 255.0).round().astype(np.uint8)
     info = PngInfo()
     if metadata:
         info.add_text("bluepixel", json.dumps(metadata, ensure_ascii=False, allow_nan=False))
