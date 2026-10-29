@@ -15,6 +15,15 @@ def test_sft_prefixes_partial_base_and_shape_check(tmp_path):
         overlay.apply("block.weight", torch.zeros(4, 4))
 
 
+@pytest.mark.parametrize("extension", ["SAFETENSORS", "SafeTensors"])
+def test_sft_safetensors_extension_is_case_insensitive(tmp_path, extension):
+    path = tmp_path / ("sft." + extension)
+    expected = torch.arange(6).reshape(2, 3).float()
+    save_file({"block.weight": expected}, str(path))
+    overlay = SFTOverlay(path, {"block.weight"})
+    assert torch.equal(overlay.apply("block.weight", torch.zeros_like(expected)), expected)
+
+
 @pytest.mark.parametrize("zip_serialization", [False, True])
 def test_sft_pytorch_checkpoint_formats_are_supported(tmp_path, zip_serialization):
     path = tmp_path / "sft.pt"

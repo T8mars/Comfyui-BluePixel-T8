@@ -49,7 +49,7 @@ python -m pip install -r requirements.txt
 
 ## 验证与许可
 
-已完成 225 项单测、8/8 API 工作流执行、实际 4096×4096 编辑，以及文本编码 / VAE 对照。INT8 是有损量化；速度、显存与画质随硬件和任务变化。测试条件与误差见[验证记录](docs/validation.md)，公开推理功能范围见[覆盖清单](docs/function-coverage.md)。
+已完成 236 项单测、8/8 API 工作流执行、实际 4096×4096 编辑，以及文本编码 / VAE 对照。INT8 是有损量化；速度、显存与画质随硬件和任务变化。测试条件与误差见[验证记录](docs/validation.md)，公开推理功能范围见[覆盖清单](docs/function-coverage.md)。
 
 节点代码使用 [GPL-3.0-or-later](LICENSE)。模型保留各上游许可，FLUX.2 Klein 9B 衍生权重受 FLUX 非商业许可约束；本项目不重新授权模型。详见 [NOTICE](NOTICE) 和[模型许可](https://huggingface.co/t8star/BluePixel-Comfy/blob/main/LICENSE.md)。
 

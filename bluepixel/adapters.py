@@ -21,7 +21,7 @@ class SFTOverlay:
         self.path = Path(path).absolute()
         self.input_file = SourceFileSnapshot(self.path)
         self.reader = None
-        if self.path.suffix == ".safetensors":
+        if self.path.suffix.casefold() == ".safetensors":
             self.reader = safe_open(str(self.path), framework="pt", device="cpu")
             keys = self.reader.keys()
         else:

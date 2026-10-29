@@ -72,8 +72,8 @@ def load_diffusion(path, dtype="default", disable_dynamic=False):
     model.model.model_sampling.timestep = types.MethodType(source_timestep, model.model.model_sampling)
     model.set_model_sampler_post_cfg_function(source_post_cfg)
     model.bluepixel_metadata = metadata
-    mark_loaded(model, path, before)
     model.bluepixel_load_dtype = dtype
+    mark_loaded(model, path, before)
     register_patcher_loader(model, load_diffusion, model.bluepixel_path,
                             dtype=dtype, disable_dynamic=disable_dynamic)
     logging.info("BluePixel: %s; f64 latents; %d native quantized layers", metadata["bluepixel.precision"], len(quantized))

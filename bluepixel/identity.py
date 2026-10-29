@@ -4,6 +4,8 @@ from pathlib import Path
 from functools import partial
 from .artifacts import sha256_file
 
+_IDENTITY_ATTACHMENT = "bluepixel.artifact_identity"
+
 
 def register_patcher_loader(patcher, loader, path, **options):
     # ComfyUI reloads through this factory when a clone needs independent weights.
@@ -22,14 +24,26 @@ def mark_loaded(component, path, before):
         raise ValueError("Model file changed while loading; reload the component")
     component.bluepixel_path = str(path)
     component.bluepixel_file_stamp = before
+    patcher = getattr(component, "patcher", component)
+    if hasattr(patcher, "set_attachments"):
+        # Native MODEL/CLIP clones retain attachments, unlike custom attributes
+        # on their patcher or CLIP wrapper. Keep the shared record immutable.
+        patcher.set_attachments(_IDENTITY_ATTACHMENT,
+            (str(path), before, getattr(component, "bluepixel_load_dtype", None)))
 
 
 def verify_loaded(component, expected_hash, label, load_dtype=None):
     path = getattr(component, "bluepixel_path", None)
     before = getattr(component, "bluepixel_file_stamp", None)
+    dtype = getattr(component, "bluepixel_load_dtype", None)
+    if path is None or before is None:
+        patcher = getattr(component, "patcher", component)
+        saved = patcher.get_attachment(_IDENTITY_ATTACHMENT) if hasattr(patcher, "get_attachment") else None
+        if saved is not None:
+            path, before, dtype = saved
     if path is None or before is None:
         raise ValueError(f"Reload the BluePixel {label} component before running this task plan")
-    if load_dtype is not None and getattr(component, "bluepixel_load_dtype", None) != load_dtype:
+    if load_dtype is not None and dtype != load_dtype:
         raise ValueError(f"Connected {label} dtype differs from the task plan; select the planned dtype and reload")
     if file_stamp(path) != before:
         raise ValueError(f"The {label} file changed after loading; reload it and replan the batch")
