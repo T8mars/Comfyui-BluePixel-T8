@@ -10,6 +10,7 @@ import comfy.model_patcher
 import comfy.sd
 import comfy.utils
 from .artifacts import read_header
+from .identity import file_stamp, mark_loaded
 from .config import CHAT_TEMPLATE, CONTEXT_DIM, FORMAT_VERSION, LATENT_CHANNELS, LATENT_SCALE, SPATIAL_RATIO
 
 
@@ -34,6 +35,7 @@ class BluePixelLatentFormat(comfy.latent_formats.LatentFormat):
 
 
 def load_diffusion(path, dtype="default", disable_dynamic=False):
+    before = file_stamp(path)
     metadata = artifact_metadata(path, "transformer")
     header = read_header(path)
     from .config import validate_transformer_config
@@ -70,7 +72,7 @@ def load_diffusion(path, dtype="default", disable_dynamic=False):
     model.model.model_sampling.timestep = types.MethodType(source_timestep, model.model.model_sampling)
     model.set_model_sampler_post_cfg_function(source_post_cfg)
     model.bluepixel_metadata = metadata
-    model.bluepixel_path = str(Path(path).resolve())
+    mark_loaded(model, path, before)
     logging.info("BluePixel: %s; f64 latents; %d native quantized layers", metadata["bluepixel.precision"], len(quantized))
     return model
 
@@ -104,6 +106,7 @@ class BluePixelTokenizer:
 
 
 def load_clip(path, device="default"):
+    before = file_stamp(path)
     artifact_metadata(path, "text_encoder")
     state, metadata = comfy.utils.load_torch_file(str(path), safe_load=True, return_metadata=True)
     serialized = state.pop("bluepixel_tokenizer_json", None)
@@ -124,7 +127,7 @@ def load_clip(path, device="default"):
     install_reference_layer_options(clip.cond_stage_model.qwen3_8b)
     clip.patcher.set_model_compute_dtype(torch.bfloat16)
     clip.tokenizer = BluePixelTokenizer(serialized.numpy().tobytes().decode("utf-8"))
-    clip.bluepixel_path = str(Path(path).resolve())
+    mark_loaded(clip, path, before)
     return clip
 
 
@@ -152,6 +155,7 @@ class DCAEComponent(torch.nn.Module):
 
 class BluePixelVAE(comfy.sd.VAE):
     def __init__(self, path, tiling=False):
+        before = file_stamp(path)
         metadata = artifact_metadata(path, "vae")
         config = json.loads(metadata["bluepixel.config"])
         if config.get("latent_channels") != 128 or config.get("scaling_factor") != LATENT_SCALE:
@@ -165,7 +169,6 @@ class BluePixelVAE(comfy.sd.VAE):
         if tiling:
             autoencoder.enable_tiling()
         self.first_stage_model = DCAEComponent(autoencoder).eval()
-        self.bluepixel_path = str(Path(path).resolve())
         self.device = mm.vae_device()
         self.output_device = mm.intermediate_device()
         self.vae_dtype = torch.float32
@@ -192,6 +195,7 @@ class BluePixelVAE(comfy.sd.VAE):
             load_device=self.device, offload_device=mm.vae_offload_device())
         mm.archive_model_dtypes(self.first_stage_model)
         self.model_size()
+        mark_loaded(self, path, before)
 
     def _source_tiling(self, samples, encode, tile_x, tile_y, overlap):
         autoencoder = self.first_stage_model.autoencoder

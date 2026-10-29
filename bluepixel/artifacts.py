@@ -115,7 +115,15 @@ class StreamingSafeWriter:
             with safe_open(str(self.final_path), framework="pt", device="cpu") as check:
                 if set(check.keys()) != set(self.header):
                     raise ValueError("Serialized tensor keys did not round trip")
-            os.replace(self.final_path, self.path)
+            if self.overwrite:
+                os.replace(self.final_path, self.path)
+            elif os.name == "nt":
+                # Windows rename atomically refuses an existing destination.
+                os.rename(self.final_path, self.path)
+            else:
+                # POSIX rename replaces existing files. Linking the complete
+                # temporary file creates the destination atomically instead.
+                os.link(self.final_path, self.path)
         finally:
             if not self.payload.closed:
                 self.payload.close()

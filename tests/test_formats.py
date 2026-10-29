@@ -1,5 +1,7 @@
 import json
 import struct
+from concurrent.futures import ThreadPoolExecutor
+import threading
 import torch
 import pytest
 from safetensors import safe_open
@@ -38,6 +40,78 @@ def test_failed_write_is_never_published(tmp_path):
             writer.add("w", torch.ones(3))
     assert not path.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+def test_concurrent_writers_never_overwrite_without_permission(tmp_path, monkeypatch):
+    import safetensors
+    original_open = safetensors.safe_open
+    barrier = threading.Barrier(2)
+
+    class ValidatedTogether:
+        def __init__(self, *args, **kwargs):
+            self.reader = original_open(*args, **kwargs)
+
+        def __enter__(self):
+            return self.reader.__enter__()
+
+        def __exit__(self, *args):
+            self.reader.__exit__(*args)
+            # Both writers have passed the old exists() check before either
+            # publishes. This deterministically exposes check/replace races.
+            barrier.wait(timeout=10)
+
+    monkeypatch.setattr(safetensors, "safe_open", ValidatedTogether)
+    path = tmp_path / "shared.safetensors"
+
+    def publish(value):
+        try:
+            with StreamingSafeWriter(path) as writer:
+                writer.add("value", torch.tensor(value))
+            return "success"
+        except FileExistsError:
+            return "exists"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(publish, [11, 22]))
+    assert sorted(results) == ["exists", "success"]
+    with original_open(str(path), framework="pt") as reader:
+        assert reader.get_tensor("value").item() in (11, 22)
+    assert sorted(p.name for p in tmp_path.iterdir()) == [path.name]
+
+
+def test_atomic_publish_link_failure_leaves_existing_output_intact(tmp_path, monkeypatch):
+    import bluepixel.artifacts as artifacts
+    original_os = artifacts.os
+    path = tmp_path / "protected.safetensors"
+
+    class PosixOperations:
+        name = "posix"
+
+        def __getattr__(self, name):
+            return getattr(original_os, name)
+
+        def link(self, source, destination):
+            # Another writer publishes after validation, before our link.
+            path.write_bytes(b"existing output")
+            return original_os.link(source, destination)
+
+    # Override this module's OS facade, not os.name globally: pathlib must
+    # keep using the host's concrete WindowsPath / PosixPath implementation.
+    monkeypatch.setattr(artifacts, "os", PosixOperations())
+    with pytest.raises(FileExistsError):
+        with StreamingSafeWriter(path) as writer:
+            writer.add("value", torch.ones(2))
+    assert path.read_bytes() == b"existing output"
+    assert sorted(p.name for p in tmp_path.iterdir()) == [path.name]
+
+
+def test_explicit_overwrite_still_replaces_complete_checkpoint(tmp_path):
+    path = tmp_path / "model.safetensors"
+    for value in (1, 2):
+        with StreamingSafeWriter(path, overwrite=True) as writer:
+            writer.add("value", torch.tensor(value))
+    with safe_open(str(path), framework="pt") as reader:
+        assert reader.get_tensor("value").item() == 2
 
 
 def test_tensor_source_checks_index_and_prevents_path_escape(tmp_path):

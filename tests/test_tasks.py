@@ -72,3 +72,32 @@ def test_configuration_provenance_is_resolvable_and_checked(tmp_path):
     path.write_text('{}')
     with pytest.raises(ValueError, match="provenance"):
         store.register_config(config)
+
+
+@pytest.mark.parametrize("damaged", [None, [], 42, "invalid", {"output": None},
+                                    {"output": []}, {"output": "missing.png"}])
+def test_damaged_completion_record_can_be_reclaimed(tmp_path, damaged):
+    task = make_plan(tmp_path)[0]
+    store = TaskStore(tmp_path / "output")
+    store.done_path(task).write_text(json.dumps(damaged), encoding="utf-8")
+    assert not store.is_done(task)
+    assert store.status([task])["remaining_tasks"] == 1
+    with store.claim(task) as acquired:
+        assert acquired
+        output = store.output_path(task)
+        output.write_bytes(b"regenerated result")
+        store.record(task, "success", output)
+    assert store.is_done(task)
+
+
+def test_completion_record_cannot_redirect_outside_output_directory(tmp_path):
+    task = make_plan(tmp_path)[0]
+    store = TaskStore(tmp_path / "output")
+    output = store.output_path(task)
+    output.write_bytes(b"result")
+    record = store.record(task, "success", output)
+    external = tmp_path / "external.png"
+    external.write_bytes(b"result")
+    record["output"] = str(external)
+    store.done_path(task).write_text(json.dumps(record), encoding="utf-8")
+    assert not store.is_done(task)

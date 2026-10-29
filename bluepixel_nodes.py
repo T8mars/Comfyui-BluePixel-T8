@@ -73,9 +73,8 @@ class BluePixelTextEncode:
         layers = [int(value.strip()) for value in hidden_layers.split(",")]
         if len(layers) != 3 or len(set(layers)) != 3 or any(layer < 0 or layer > 36 for layer in layers):
             raise ValueError("Choose three distinct hidden layers in 0..36; trained defaults are9,18,27")
-        if layers != [9, 18, 27]:
-            clip = clip.clone()
-            clip.clip_layer(sorted(layers))
+        clip = clip.clone()
+        clip.clip_layer(sorted(layers))
         tokens = clip.tokenize(instruction, max_sequence_length=max_sequence_length)
         empty = clip.tokenize("", max_sequence_length=max_sequence_length)
         positive = clip.encode_from_tokens_scheduled(tokens)
@@ -346,7 +345,7 @@ class BluePixelBatchRun:
 
     def run(self, plan, model, clip, vae, output_dir, resume=True, dry_run=False,
             metadata_file="metadata.jsonl", lock_timeout=0.0):
-        from .bluepixel.artifacts import sha256_file
+        from .bluepixel.identity import verify_loaded
         from .bluepixel.tasks import TaskStore
         from .bluepixel.execution import run_tasks
         directory = Path(output_dir)
@@ -358,9 +357,7 @@ class BluePixelBatchRun:
             if bool(vae.first_stage_model.autoencoder.use_tiling) != plan["config"]["vae_tiling"]:
                 raise ValueError("Connected VAE tiling differs from the task plan; replan before running")
             for key, component in (("diffusion", model), ("text_encoder", clip), ("vae", vae)):
-                path = getattr(component, "bluepixel_path", None)
-                if path is None or sha256_file(path) != plan["model_hashes"][key]:
-                    raise ValueError(f"Connected {key} differs from the task plan; replan before running")
+                verify_loaded(component, plan["model_hashes"][key], key)
             result = run_tasks(plan["tasks"], directory, model, clip, vae, plan["settings"],
                                resume, metadata_file, lock_timeout, config=plan["config"])
         text = json.dumps(result, ensure_ascii=False)

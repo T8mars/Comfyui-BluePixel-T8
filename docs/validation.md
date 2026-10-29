@@ -14,7 +14,7 @@
 
 ## 已执行的正确性检查
 
-- 完整单测107项通过。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
+- 完整单测124项通过（首次发布107项，v0.1.2新增17项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
 - 3种scheduler × 6种token length × 4种steps逐项对照Diffusers，包含4300/4301分段与终点0。
 - 小型Flux2带参考图与四维IDs，Diffusers/ComfyUI CPU FP32前向：max abs `2.980232238769531e-7`，relative L2 `1.0175625675401534e-7`。
 - 全量INT8骨干前向finite；Profiler记录121次 `comfy_kitchen::int8_linear` 和121次 `aten::_int_mm`，峰值9,821,536,768 bytes。并非仅INT8存储或浮点模拟。
@@ -25,6 +25,22 @@
 - 完整高级路径：无参考图CFG0/1 latent逐元素相同；双参考、batch2、逐图seed42/43、trainingμ、真实回调替换文本与最后latent均通过；畸形自定义embedding被拒绝。
 - 官方ComfyUI API工作流8/8均已完整执行，包含干净ZIP解压安装的4096×4096完整链（129.88秒，含模型/文本加载）；保比例3200×5312、trainingμ、fixed shift、双参考、无参考、batch2都有真实PNG和history。首次1024²全链约51.4秒，缓存后约6.1秒。
 - JSONL真实批任务两个seed均成功；最终规范化配置续跑skipped2、models_loaded=false，文件哈希复核后保留原图。任务指纹可在`_configs`反查模型SHA和完整推理设置。
+
+## v0.1.2 复查与修复
+
+主 Agent 与子 Agent 完成20轮复查，修复以下5类问题：
+
+| 问题 | 修复与复现依据 |
+| --- | --- |
+| 损坏完成记录中断整批续跑 | 对 JSON 结构与输出路径做检查；7种畸形记录及目录外路径均能正确识别，损坏任务可以重领 |
+| 并发转换可能覆盖已有文件 | 默认使用原子无覆盖发布；真实双线程竞争、POSIX link冲突分支和显式overwrite均通过 |
+| PEFT rank/alpha pattern语义不一致 | 遵循PEFT正则后缀匹配及配置首个命中顺序，修复静默倍率错误 |
+| 同名模型文件替换后误用旧缓存对象 | 三Loader绑定加载时文件身份；执行批任务时同时验证文件身份与计划SHA256，变化后要求重新加载并规划 |
+| 文本节点默认层被输入CLIP选项覆盖 | 对每次编码的clone显式设置请求层；真实Comfy CPU接口复现旧版错误并验证默认9/18/27、自定义36/0/18和输入实例隔离 |
+
+本轮完整测试124项通过，包含CPU小矩阵和已有微型CUDA RoPE对照；独立进程锁与崩溃恢复再次通过。真实Comfy节点选项检查使用CPU、未加载权重。隐藏GPU时曾遇到宿主xformers/Triton导入限制，最终使用原有环境完成全部测试，没有改动共享依赖。以下完整权重、API和4K数据来自首次发布的GPU验证，本轮未重复执行。
+
+更新插件后请重启ComfyUI，以使三个Loader建立新的模型文件身份记录；现有分体模型文件兼容此版本。
 
 ## 完整编辑与BF16对照
 

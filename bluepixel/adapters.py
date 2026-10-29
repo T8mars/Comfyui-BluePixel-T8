@@ -89,9 +89,11 @@ class PeftOverlay:
 
     def _pattern_value(self, name, module, default):
         patterns = self.config.get(name, {})
-        for pattern in sorted(patterns, key=len, reverse=True):
-            if module == pattern or module.endswith("." + pattern) or re.fullmatch(pattern, module):
-                return patterns[pattern]
+        # Match PEFT's get_pattern_key: an optional module prefix, then the
+        # configured regex suffix, taking the first match in config order.
+        for pattern, value in patterns.items():
+            if re.match(rf"(.*\.)?({pattern})$", module):
+                return value
         return default
 
     def apply(self, key, base):

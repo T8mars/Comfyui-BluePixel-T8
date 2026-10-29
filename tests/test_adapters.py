@@ -24,3 +24,23 @@ def test_peft_merge_and_legacy_negative_scale(tmp_path, scale, effective):
     overlay = PeftOverlay(tmp_path, {"block.weight"}, scale)
     base = torch.randn(3, 4)
     torch.testing.assert_close(overlay.apply("block.weight", base), base + effective * 2 * (b @ a))
+
+
+@pytest.mark.parametrize("config", [
+    {"r": 4, "lora_alpha": 8, "rank_pattern": {r"block\.\d+\.proj": 2},
+     "alpha_pattern": {r"block\.\d+\.proj": 4}},
+    {"r": 2, "lora_alpha": 2,
+     "alpha_pattern": {"proj": 4, "encoder.block.0.proj": 8}},
+])
+def test_peft_patterns_follow_regex_suffix_and_first_match(tmp_path, config):
+    module = "encoder.block.0.proj"
+    a, b = torch.ones(2, 4), torch.ones(3, 2)
+    save_file({f"base_model.model.{module}.lora_A.weight": a,
+               f"base_model.model.{module}.lora_B.weight": b},
+              str(tmp_path / "adapter_model.safetensors"))
+    (tmp_path / "adapter_config.json").write_text(json.dumps(config), encoding="utf-8")
+    overlay = PeftOverlay(tmp_path, {module + ".weight"})
+    # PEFT resolves rank=2 and alpha=4 in both cases, including when a later,
+    # longer pattern also matches. The LoRA delta is (alpha/rank) * B @ A.
+    torch.testing.assert_close(overlay.apply(module + ".weight", torch.zeros(3, 4)),
+                               2 * (b @ a))

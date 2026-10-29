@@ -129,11 +129,14 @@ class TaskStore:
     def is_done(self, task, verify_hash=True):
         try:
             record = json.loads(self.done_path(task).read_text(encoding="utf-8"))
+            if not isinstance(record, dict) or not isinstance(record.get("output"), str):
+                return False
             output = Path(record["output"])
             return (record["status"] == "success" and record["task_id"] == task.task_id and
-                    record["config_fingerprint"] == task.config_fingerprint and output.is_file() and
+                    record["config_fingerprint"] == task.config_fingerprint and
+                    output.resolve().is_relative_to(self.directory) and output.is_file() and
                     (not verify_hash or sha256_file(output) == record["output_sha256"]))
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError, KeyError, TypeError):
             return False
 
     @contextmanager
