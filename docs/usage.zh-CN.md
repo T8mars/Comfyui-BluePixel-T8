@@ -26,7 +26,7 @@ DiT 使用原生 `int8_tensorwise`、`convrot=true`、逐行 scale；矩阵输�
 python -m pip install -r requirements.txt
 ```
 
-本地开发目录可运行 `python tools/package_plugin.py` 生成干净的 `dist/ComfyUI-BluePixel-0.1.0.zip`，解压到 `custom_nodes`。模型另行放入 ComfyUI 的 `models/diffusion_models`、`models/text_encoders`、`models/vae`，不会包含在插件ZIP里。
+本地开发目录可运行 `python tools/package_plugin.py` 生成当前版本的 `dist/ComfyUI-BluePixel-<version>.zip`，解压到 `custom_nodes`。模型另行放入 ComfyUI 的 `models/diffusion_models`、`models/text_encoders`、`models/vae`，不会包含在插件ZIP里。
 
 Torch 由宿主 ComfyUI 提供，本插件不在加载时安装/替换 Torch。研究基线是 ComfyUI `0df1646a9cd71d4c990a87014fb37797a2956ead`；旧版如果缺少 Flux2/Klein、Qwen3-8B、INT8 ConvRot 支持，需要更新。当前工具需要 Python 3.10+、Diffusers 0.40+；原作者 requirements 的 0.36 限制不能直接作为正确骨干对照环境。
 

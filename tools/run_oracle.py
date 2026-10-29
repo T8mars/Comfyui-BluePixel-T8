@@ -38,8 +38,6 @@ def main():
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.backends.cudnn.benchmark = False
-    spec = importlib.util.spec_from_file_location("bluepixel_official_reference", args.reference_code)
-    reference = importlib.util.module_from_spec(spec)
     original_code = args.reference_code.read_text(encoding="utf-8")
     callback_bug = "callback_kwargs = {k: locals()[k] for k in callback_on_step_end_tensor_inputs}"
     if original_code.count(callback_bug) != 1:
@@ -48,9 +46,16 @@ def main():
     patched_code = re.sub(r"(?m)^([ \t]*)" + re.escape(callback_bug),
         lambda match: match.group(1) + "callback_state = locals()\n" + match.group(1) +
             "callback_kwargs = {k: callback_state[k] for k in callback_on_step_end_tensor_inputs}", original_code)
-    exec(compile(patched_code, str(args.reference_code), "exec"), reference.__dict__)
     import difflib
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    # Persist the adapted reference for inspection, then load it as a Python module.
+    patched_path = args.output.with_suffix(".oracle.py")
+    patched_path.write_text(patched_code, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("bluepixel_official_reference", patched_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load reference module: {patched_path}")
+    reference = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(reference)
     args.output.with_suffix(".oracle.patch").write_text("".join(difflib.unified_diff(
         original_code.splitlines(keepends=True), patched_code.splitlines(keepends=True),
         fromfile="vins_infer.py (pinned)", tofile="vins_infer.py (oracle runtime)")), encoding="utf-8")

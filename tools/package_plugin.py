@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import re
 from pathlib import Path
 import zipfile
 
@@ -12,7 +13,9 @@ def main():
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    output = args.output or root / "dist" / "ComfyUI-BluePixel-0.1.0.zip"
+    version = re.search(r'(?m)^version\s*=\s*"([^"]+)"',
+                        (root / "pyproject.toml").read_text(encoding="utf-8")).group(1)
+    output = args.output or root / "dist" / f"ComfyUI-BluePixel-{version}.zip"
     if output.exists() and not args.overwrite:
         raise FileExistsError(output)
     files = [root / name for name in ("__init__.py", "bluepixel_nodes.py", "README.md", "README_EN.md", "LICENSE",

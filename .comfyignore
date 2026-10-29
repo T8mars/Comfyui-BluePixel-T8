@@ -1,6 +1,11 @@
 # Registry archives contain runtime code, tools, workflows and user documentation.
 .github/
 tests/
+tools/run_oracle.py
+tools/verify_*.py
+tools/compare_edits.py
+tools/build_workflows.py
+tools/run_smoke.py
 roadmap.md
 .research/
 models/
