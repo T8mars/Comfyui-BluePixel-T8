@@ -347,7 +347,6 @@ class BluePixelBatchRun:
 
     def run(self, plan, model, clip, vae, output_dir, resume=True, dry_run=False,
             metadata_file="metadata.jsonl", lock_timeout=0.0):
-        from .bluepixel.identity import verify_loaded
         from .bluepixel.tasks import TaskStore
         from .bluepixel.execution import run_tasks
         directory = Path(output_dir)
@@ -357,11 +356,6 @@ class BluePixelBatchRun:
         if dry_run:
             result = {"dry_run": True, **TaskStore(directory, metadata_file).status(plan["tasks"])}
         else:
-            if bool(vae.first_stage_model.autoencoder.use_tiling) != plan["config"]["vae_tiling"]:
-                raise ValueError("Connected VAE tiling differs from the task plan; replan before running")
-            for key, component in (("diffusion", model), ("text_encoder", clip), ("vae", vae)):
-                dtype = plan["config"].get("diffusion_dtype", "default") if key == "diffusion" else None
-                verify_loaded(component, plan["model_hashes"][key], key, load_dtype=dtype)
             result = run_tasks(plan["tasks"], directory, model, clip, vae, plan["settings"],
                                resume, metadata_file, lock_timeout, config=plan["config"])
         text = json.dumps(result, ensure_ascii=False)

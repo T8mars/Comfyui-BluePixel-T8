@@ -49,7 +49,7 @@ Other examples cover aspect-ratio preservation, training μ, fixed shift, multip
 
 ## Validation and licensing
 
-Validated with 174 unit tests, 8/8 executed API workflows, an actual 4096×4096 edit, and text-encoder / VAE comparisons. INT8 quantization is lossy. Speed, memory use and output quality depend on hardware and task; see [validation](docs/validation.md) and the [public inference feature coverage](docs/function-coverage.md).
+Validated with 196 unit tests, 8/8 executed API workflows, an actual 4096×4096 edit, and text-encoder / VAE comparisons. INT8 quantization is lossy. Speed, memory use and output quality depend on hardware and task; see [validation](docs/validation.md) and the [public inference feature coverage](docs/function-coverage.md).
 
 Node code is [GPL-3.0-or-later](LICENSE). Model weights retain their upstream terms, including the FLUX Non-Commercial License for FLUX.2 Klein 9B derivatives. This project does not relicense the weights. See [NOTICE](NOTICE) and the [model license](https://huggingface.co/t8star/BluePixel-Comfy/blob/main/LICENSE.md).
 

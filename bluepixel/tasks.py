@@ -207,6 +207,23 @@ class TaskStore:
         metadata_identity = identity(self.metadata)
         if overlaps_input(metadata_identity):
             raise ValueError("Batch metadata must not overwrite an input image or source JSONL")
+        internal = {self.directory / "_locks" / "metadata.lock"}
+        for task in tasks:
+            lock = self.directory / "_locks" / (task.task_id + ".lock")
+            internal.update((self.done_path(task), lock, lock.with_suffix(".owner.json"),
+                             self.directory / "_configs" / (task.config_fingerprint + ".json")))
+        internal_identities = [identity(path) for path in internal]
+        if any(overlaps_input(value) for value in internal_identities):
+            raise ValueError("Batch internal state must not overwrite an input image or source JSONL")
+        internal_paths = {path for path, _ in internal_identities}
+        internal_inodes = {inode for _, inode in internal_identities if inode is not None}
+
+        def overlaps_internal(value):
+            path, inode = value
+            return path in internal_paths or inode is not None and inode in internal_inodes
+
+        if overlaps_internal(metadata_identity):
+            raise ValueError("Batch metadata must not overwrite internal state")
         for output in [*(self.output_path(task) for task in tasks), *outputs]:
             output_identity = identity(output)
             if overlaps_input(output_identity):
@@ -214,6 +231,8 @@ class TaskStore:
             if (output_identity[0] == metadata_identity[0] or
                     output_identity[1] is not None and output_identity[1] == metadata_identity[1]):
                 raise ValueError("Batch metadata and output paths must be different")
+            if overlaps_internal(output_identity):
+                raise ValueError("Batch output must not overwrite internal state")
 
     def register_config(self, config):
         identity = fingerprint(config)
@@ -247,6 +266,7 @@ class TaskStore:
 
     @contextmanager
     def claim(self, task, resume=True, timeout=0):
+        self.validate_task_paths([task])
         lock_path = self.directory / "_locks" / (task.task_id + ".lock")
         lock = FileLock(str(lock_path), timeout=timeout)
         acquired = False

@@ -70,7 +70,7 @@ def main():
         return
     store.register_config(config)
     status = store.status(tasks)
-    if not args.no_resume and status["remaining_tasks"] == 0:
+    if not tasks or (not args.no_resume and status["remaining_tasks"] == 0):
         print(json.dumps({"stage": "complete", "success": 0, "failed": 0,
             "skipped": len(tasks), **status, "models_loaded": False}), flush=True)
         return
@@ -89,6 +89,8 @@ def main():
                        args.metadata_file, args.lock_timeout,
                        progress=lambda event: print(json.dumps(event, ensure_ascii=False), flush=True), config=config)
     print(json.dumps({"stage": "complete", **result}), flush=True)
+    if result["failed"]:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

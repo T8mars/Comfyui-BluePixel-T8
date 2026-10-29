@@ -100,6 +100,8 @@ TaskPlan 的 `diffusion_dtype` 必须与扩散Loader的 `dtype` 一致；CLI对�
 
 日志和输出路径不能与任何计划输入图片或源JSONL重叠，硬链接别名同样会被拒绝；CLI在加载模型前检查。seed必须是0到2^64−1的整数值，不能用小数截断代替整数。三个Loader的重载工厂会保留BluePixel适配设置，用于ComfyUI需要独立权重的深克隆；多GPU运行仍需在相应硬件验证。
 
+内部done、锁、owner和config目标也不能覆盖输入，日志和输出不能占用这些状态文件。执行时统一核对实际模型与设置是否符合计划。CLI在出现失败任务时返回退出码1；空任务即使使用 `--no-resume` 也不会加载神经网络组件。
+
 `BluePixelTaskPlan` 不加载神经网络即可生成任务计划；图内 `BluePixelBatchRun` 连接真实组件执行。图内 dry-run 不会采样，但已经连接的 Loader 仍由 ComfyUI 按图依赖执行；完全不加载模型请使用 CLI dry-run 或只执行 TaskPlan。
 
 高级接口见 [高级输入与回调](advanced.md)。`BluePixelPackLatent` / `BluePixelUnpackLatent` 在上游 packed tokens 和 ComfyUI 空间 latent 之间显式转换；`BluePixelSeedListNoise` 接官方采样节点，要求 seed 数等于 latent batch。

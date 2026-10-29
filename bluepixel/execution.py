@@ -13,7 +13,8 @@ from .artifacts import sha256_file
 from .config import DEFAULT_PIXELS
 from .image import prepare_image, image_to_uint8
 from .scheduling import schedule_values
-from .tasks import TaskStore, plan_tasks
+from .tasks import TaskStore, plan_tasks, fingerprint, inference_config
+from .identity import verify_components
 from .conditioning import append_references
 
 
@@ -132,9 +133,20 @@ def run_tasks(tasks, output_dir, model, clip, vae, settings, resume=True,
     store = TaskStore(output_dir, metadata_file)
     store.validate_task_paths(tasks)
     if config is not None:
-        identity = store.register_config(config)
+        if config.get("pipeline_version") != 1:
+            raise ValueError("Unsupported task pipeline version; replan the batch")
+        identity = fingerprint(config)
         if any(task.config_fingerprint != identity for task in tasks):
             raise ValueError("Task plan differs from the recorded model/inference configuration")
+        common = (config.get("model_hashes", {}), config.get("vae_tiling", True),
+                  config.get("diffusion_dtype", "default"))
+        planned = inference_config(config.get("settings", {}), *common)["settings"]
+        actual = inference_config(settings, *common)["settings"]
+        if actual != planned:
+            raise ValueError("Execution settings differ from the task plan; replan before running")
+        verify_components(model, clip, vae, config)
+        settings = actual
+        store.register_config(config)
     counts = {"success": 0, "failed": 0, "skipped": 0}
     progress = progress or (lambda event: None)
     for task in tasks:

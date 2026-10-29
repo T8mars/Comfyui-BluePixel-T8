@@ -14,7 +14,7 @@
 
 ## 已执行的正确性检查
 
-- 完整单测174项通过（首次发布107项，v0.1.2新增17项，第二次复查新增30项，第三次复查新增20项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
+- 完整单测196项通过（首次发布107项，v0.1.2新增17项，第二次复查新增30项，第三次新增20项，第四次新增22项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
 - 3种scheduler × 6种token length × 4种steps逐项对照Diffusers，包含4300/4301分段与终点0。
 - 小型Flux2带参考图与四维IDs，Diffusers/ComfyUI CPU FP32前向：max abs `2.980232238769531e-7`，relative L2 `1.0175625675401534e-7`。
 - 全量INT8骨干前向finite；Profiler记录121次 `comfy_kitchen::int8_linear` 和121次 `aten::_int_mm`，峰值9,821,536,768 bytes。并非仅INT8存储或浮点模拟。
@@ -71,6 +71,21 @@
 真实Comfy CPU ModelPatcher加单参数组件复现：旧扩散clone的空间倍率64变16、时间适配丢失；旧CLIP/VAE直接报缺少cached_patcher_init。修复后三组件深克隆成功且模型独立，适配设置保留。替代的仅为权重分配，不是完整9B/8B/DCAE数值测试；多GPU实际执行仍需专用环境。
 
 CLI实际碰撞测试确认在native Loader导入前报错，原始PNG和JSONL字节未改变。4线程16任务日志、跨进程锁恢复、CRLF/UTF8断尾及小型转换链亦通过。本轮未加载完整权重、未重复4K/GPU采样；下述完整权重与画质记录仍为首次发布的测试。
+
+## v0.1.6 第四次20轮复查
+
+主 Agent 与独立子 Agent 完成第四次20轮检查，修复4类问题，新增22项回归，最终196项测试通过（13.44秒）：
+
+| 问题 | 修复与验证 |
+| --- | --- |
+| 内部状态写入仍可能覆盖任务输入 | 预检加入done、任务锁、owner、metadata锁和config目标及inode别名；claim获取锁前也会检查。源JSONL移动到内部目标、硬链接及metadata/output内部冲突均覆盖 |
+| CLI或直接执行入口可能使用不匹配的模型或设置 | 统一在run_tasks检查三组件hash/加载身份/精度/VAE tiling和实际运行settings，再登记配置、执行任务；图入口委托同一校验，避免重复哈希 |
+| 失败任务被CLI当作成功退出 | 保留完整统计并返回退出码1；正确完成仍为0 |
+| 空批次加no-resume仍加载模型 | 空任务在加载组件前完成，报告models_loaded=false |
+
+小文件与真实TaskStore/PNG、模拟采样复现：规划后替换checkpoint再加载，旧版仍生成成功PNG并沿用旧hash；修复后执行前拒绝且无PNG。真实Comfy CPU节点入口也验证正确配置接受、错误精度/tiling/settings/checkpoint拒绝。CLI实际失败任务退出码由0改为1，空强制批次组件加载次数由3降为0。
+
+4线程日志、跨进程锁恢复、旧SFT/PEFT及小型转换链继续通过。本轮未加载完整模型或重复4K/GPU生成；以下完整权重与画质记录仍来自首次发布。默认任务身份与现有三个模型兼容。
 
 ## 完整编辑与BF16对照
 

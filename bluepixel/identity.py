@@ -38,3 +38,17 @@ def verify_loaded(component, expected_hash, label, load_dtype=None):
         raise ValueError(f"The {label} file changed during verification; reload it and replan the batch")
     if not matches:
         raise ValueError(f"Connected {label} differs from the task plan; replan before running")
+
+
+def verify_components(model, clip, vae, config):
+    hashes = config.get("model_hashes", {})
+    if not isinstance(hashes, dict) or {"diffusion", "text_encoder", "vae"} - hashes.keys():
+        raise ValueError("Task configuration must identify all three BluePixel model files")
+    autoencoder = getattr(getattr(vae, "first_stage_model", None), "autoencoder", None)
+    if autoencoder is None or not hasattr(autoencoder, "use_tiling"):
+        raise ValueError("Connect the BluePixel DCAE-F64 component for this task plan")
+    if bool(autoencoder.use_tiling) != config.get("vae_tiling", True):
+        raise ValueError("Connected VAE tiling differs from the task plan; replan before running")
+    for label, component in (("diffusion", model), ("text_encoder", clip), ("vae", vae)):
+        dtype = config.get("diffusion_dtype", "default") if label == "diffusion" else None
+        verify_loaded(component, hashes[label], label, load_dtype=dtype)
