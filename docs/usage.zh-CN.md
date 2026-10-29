@@ -44,6 +44,8 @@ python tools/convert_bluepixel.py --source D:/models/BluePixel-source --output D
 
 默认导出 DiT INT8 ConvRot、原精度 Qwen3 和 FP32 DCAE 三个单体。源权重约 55.4 GB；还需输出和临时文件空间。转换逐张量执行，合并 QKV、交换最终 scale/shift 顺序，写入版本/config/tokenizer 元数据和 SHA256 manifest。已有文件默认拒绝覆盖，明确使用 `--overwrite` 才覆盖。
 
+INT8 的 `--group-size` 必须是至少64的4的整数幂，默认256；各矩阵仍按输入宽度选择兼容分组。转换期间请保持源权重、配置、tokenizer和适配器文件不变，检测到变化会在发布输出前终止，并保留已有输出。
+
 可只处理一个组件，或保留未量化主模型进行对照：
 
 ```powershell
@@ -101,6 +103,8 @@ TaskPlan 的 `diffusion_dtype` 必须与扩散Loader的 `dtype` 一致；CLI对�
 日志和输出路径不能与任何计划输入图片或源JSONL重叠，硬链接别名同样会被拒绝；CLI在加载模型前检查。seed必须是0到2^64−1的整数值，不能用小数截断代替整数。三个Loader的重载工厂会保留BluePixel适配设置，用于ComfyUI需要独立权重的深克隆；多GPU运行仍需在相应硬件验证。
 
 内部done、锁、owner和config目标也不能覆盖输入，日志和输出不能占用这些状态文件。执行时统一核对实际模型与设置是否符合计划。CLI在出现失败任务时返回退出码1；空任务即使使用 `--no-resume` 也不会加载神经网络组件。
+
+每项任务对同一份图片字节完成SHA校验与解码，避免读取图片与记录哈希不一致。CLI进度为JSON，非ASCII字符使用Unicode转义，解析后仍保留原始中文和表情符号；元数据文件继续使用UTF-8。
 
 `BluePixelTaskPlan` 不加载神经网络即可生成任务计划；图内 `BluePixelBatchRun` 连接真实组件执行。图内 dry-run 不会采样，但已经连接的 Loader 仍由 ComfyUI 按图依赖执行；完全不加载模型请使用 CLI dry-run 或只执行 TaskPlan。
 

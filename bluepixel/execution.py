@@ -1,6 +1,8 @@
 """Editing and batch execution through ComfyUI's standard sampler."""
 
 import json
+import hashlib
+from io import BytesIO
 import os
 from pathlib import Path
 import tempfile
@@ -9,7 +11,6 @@ import numpy as np
 from PIL import Image
 import torch
 
-from .artifacts import sha256_file
 from .config import DEFAULT_PIXELS
 from .image import prepare_image, image_to_uint8
 from .scheduling import schedule_values
@@ -128,6 +129,16 @@ def save_png_atomic(image, path, metadata=None):
             os.unlink(temporary)
 
 
+def _load_task_image(task):
+    # Validate and decode the very same bytes, even if the path is replaced.
+    data = Path(task.image_path).read_bytes()
+    if hashlib.sha256(data).hexdigest() != task.image_sha256:
+        raise ValueError("Input image changed after task planning; replan the batch")
+    with BytesIO(data) as buffer, Image.open(buffer) as source:
+        pixels = np.asarray(source.convert("RGB")).copy()
+    return torch.from_numpy(pixels).float().unsqueeze(0) / 255
+
+
 def run_tasks(tasks, output_dir, model, clip, vae, settings, resume=True,
               metadata_file="metadata.jsonl", lock_timeout=0, fail_fast=False, progress=None, config=None):
     store = TaskStore(output_dir, metadata_file)
@@ -157,10 +168,7 @@ def run_tasks(tasks, output_dir, model, clip, vae, settings, resume=True,
                 counts["skipped"] += 1
                 continue
             try:
-                if sha256_file(task.image_path) != task.image_sha256:
-                    raise ValueError("Input image changed after task planning; replan the batch")
-                with Image.open(task.image_path) as source:
-                    image = torch.from_numpy(np.asarray(source.convert("RGB")).copy()).float().unsqueeze(0) / 255
+                image = _load_task_image(task)
                 output, latent, metadata = run_edit(model, clip, vae, task.instruction,
                     image, seed=task.seed, **settings)
                 if output.shape[0] != 1:

@@ -17,6 +17,34 @@ def sha256_file(path, chunk_size=8 * 1024 * 1024):
     return digest.hexdigest()
 
 
+class SourceFileSnapshot:
+    """Detect changed conversion inputs without copying their payloads."""
+
+    def __init__(self, path):
+        # Keep the logical filename: resolving a leaf symlink here would hide a
+        # later retargeting from the reader, which opens that logical filename.
+        self.path = Path(path).absolute()
+        self.stamp = self._stat()
+
+    def _stat(self):
+        value = self.path.stat()
+        return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns
+
+    def verify_unchanged(self):
+        try:
+            unchanged = self._stat() == self.stamp
+        except OSError as error:
+            raise ValueError(f"Conversion input changed or became unavailable: {self.path}") from error
+        if not unchanged:
+            raise ValueError(f"Conversion input changed while being read: {self.path}")
+
+    def sha256(self):
+        self.verify_unchanged()
+        value = sha256_file(self.path)
+        self.verify_unchanged()
+        return value
+
+
 def atomic_json(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

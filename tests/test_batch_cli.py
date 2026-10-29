@@ -1,4 +1,6 @@
 import importlib.util
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -72,3 +74,22 @@ def test_empty_force_rerun_does_not_load_models(cli_batch, monkeypatch, capsys):
     assert not cli_batch.loaded
     final = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert final["models_loaded"] is False and final["total_tasks"] == 0
+
+
+def test_unicode_progress_does_not_abort_with_legacy_stdout_encoding(cli_batch, monkeypatch):
+    instruction = "换成红色🌈"
+
+    def execute(*args, progress, **kwargs):
+        progress({"instruction": instruction, "status": "success"})
+        return {"success": 1, "failed": 0, "skipped": 0,
+                "total_tasks": 1, "done_tasks": 1, "remaining_tasks": 0}
+
+    monkeypatch.setattr(execution, "run_tasks", execute)
+    buffer = io.BytesIO()
+    stream = io.TextIOWrapper(buffer, encoding="cp936", errors="strict")
+    with contextlib.redirect_stdout(stream):
+        cli_batch.cli.main()
+    stream.flush()
+    rows = [json.loads(line) for line in buffer.getvalue().decode("cp936").splitlines()]
+    assert any(row.get("instruction") == instruction for row in rows)
+    assert rows[-1]["stage"] == "complete" and rows[-1]["success"] == 1

@@ -12,7 +12,7 @@ import re
 import torch
 from safetensors import safe_open
 
-from .artifacts import StreamingSafeWriter, atomic_json, sha256_file
+from .artifacts import StreamingSafeWriter, SourceFileSnapshot, atomic_json, sha256_file
 from .config import FORMAT_VERSION, SOURCE_REPO, SOURCE_REVISION, validate_transformer_config
 
 
@@ -27,14 +27,22 @@ class TensorSource:
         self.map = {}
         self.stack = ExitStack()
         self.readers = {}
+        self.inputs = {}
+        self.aux_inputs = {}
         if indexes:
+            self.aux_inputs[indexes[0].name] = SourceFileSnapshot(indexes[0])
             self.map = json.loads(indexes[0].read_text(encoding="utf-8"))["weight_map"]
+            self.aux_inputs[indexes[0].name].verify_unchanged()
         else:
             files = list(self.directory.glob("*.safetensors"))
             if len(files) != 1:
                 raise ValueError(f"Expected one safetensors file or an index in {directory}")
+            if not files[0].resolve().is_relative_to(self.directory):
+                raise ValueError(f"Shard path escapes snapshot: {files[0].name}")
+            self.inputs[files[0].name] = SourceFileSnapshot(files[0])
             with safe_open(str(files[0]), framework="pt", device="cpu") as source:
                 self.map = {key: files[0].name for key in source.keys()}
+            self.inputs[files[0].name].verify_unchanged()
         if not self.map:
             raise ValueError("Empty checkpoint index")
         for name in set(self.map.values()):
@@ -43,6 +51,8 @@ class TensorSource:
                 raise ValueError(f"Shard path escapes snapshot: {name}")
             if not path.is_file():
                 raise FileNotFoundError(f"Missing shard: {path}")
+            if name not in self.inputs:
+                self.inputs[name] = SourceFileSnapshot(self.directory / name)
 
     def __enter__(self):
         return self
@@ -52,13 +62,19 @@ class TensorSource:
 
     def get(self, key):
         name = self.map[key]
+        self.inputs[name].verify_unchanged()
         if name not in self.readers:
             reader = self.stack.enter_context(safe_open(str(self.directory / name), framework="pt", device="cpu"))
             indexed = {k for k, filename in self.map.items() if filename == name}
             if indexed != set(reader.keys()):
                 raise ValueError(f"Index and shard keys differ: {name}")
+            self.inputs[name].verify_unchanged()
             self.readers[name] = reader
         return self.readers[name].get_tensor(key)
+
+    def verify_unchanged(self):
+        for snapshot in (*self.inputs.values(), *self.aux_inputs.values()):
+            snapshot.verify_unchanged()
 
 
 def transformer_mapping(keys):
@@ -183,10 +199,16 @@ def convert_component(snapshot, output, component="transformer", precision="int8
         raise ValueError(f"Unknown component: {component}")
     if precision not in {"original", "bf16", "int8_convrot"}:
         raise ValueError(f"Unknown precision: {precision}")
+    if precision == "int8_convrot" and (isinstance(group_size, bool) or not isinstance(group_size, int)
+            or group_size < 64 or group_size & (group_size - 1) or (group_size.bit_length() - 1) % 2):
+        raise ValueError("INT8 conversion requires a ConvRot group of at least 64 and a power of four")
     if component == "vae" and precision != "original":
         raise ValueError("Keep the DCAE-F64 in its original FP32 precision")
-    directory = Path(snapshot) / component
+    snapshot, output = Path(snapshot).absolute(), Path(output).absolute()
+    directory = snapshot / component
+    config_file = SourceFileSnapshot(directory / "config.json")
     config = json.loads((directory / "config.json").read_text(encoding="utf-8"))
+    config_file.verify_unchanged()
     if component == "transformer":
         validate_transformer_config(config)
     metadata = {
@@ -203,6 +225,8 @@ def convert_component(snapshot, output, component="transformer", precision="int8
     with TensorSource(directory) as source:
         from .adapters import SFTOverlay, PeftOverlay
         overlays = []
+        auxiliary = {f"{component}/config.json": config_file,
+                     **{f"{component}/{name}": value for name, value in source.aux_inputs.items()}}
         if sft_checkpoint or peft_directory:
             if component != "transformer":
                 raise ValueError("SFT/LoRA overrides apply only to the diffusion transformer")
@@ -222,6 +246,7 @@ def convert_component(snapshot, output, component="transformer", precision="int8
                 tokenizer_file = Path(snapshot) / "tokenizer" / "tokenizer.json"
                 if not tokenizer_file.is_file():
                     raise FileNotFoundError("The snapshot must include tokenizer/tokenizer.json")
+                auxiliary["tokenizer/tokenizer.json"] = SourceFileSnapshot(tokenizer_file)
                 writer.add("bluepixel_tokenizer_json", torch.frombuffer(bytearray(tokenizer_file.read_bytes()), dtype=torch.uint8))
             for index, (target, parts) in enumerate(sorted(mapping.items())):
                 values = []
@@ -263,8 +288,20 @@ def convert_component(snapshot, output, component="transformer", precision="int8
                 progress({"stage": "tensor", "component": component, "index": index + 1,
                           "total": len(mapping), "key": target, "dtype": record["output_dtype"]})
                 del tensor, values
-        report["source_files"] = [{"path": name, "sha256": sha256_file(directory / name)}
-                                  for name in sorted(set(source.map.values()))]
+            # Freeze provenance before the writer publishes the new artifact.
+            # All payloads have already been copied into its private spool.
+            source.verify_unchanged()
+            for overlay in overlays:
+                overlay.verify_unchanged()
+            report["source_files"] = [{"path": name, "sha256": source.inputs[name].sha256()}
+                                      for name in sorted(source.inputs)]
+            report["source_aux_files"] = [{"path": name, "sha256": value.sha256()}
+                                          for name, value in sorted(auxiliary.items())]
+            source.verify_unchanged()
+            for overlay in overlays:
+                overlay.verify_unchanged()
+            for value in auxiliary.values():
+                value.verify_unchanged()
     report["output"] = {"file": Path(output).name, "bytes": Path(output).stat().st_size,
                         "sha256": sha256_file(output)}
     report_path = Path(str(output) + ".manifest.json")

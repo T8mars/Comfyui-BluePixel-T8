@@ -87,7 +87,7 @@ def main():
     vae = BluePixelVAE(args.vae, args.vae_tiling)
     result = run_tasks(tasks, args.out_dir, model, clip, vae, settings, not args.no_resume,
                        args.metadata_file, args.lock_timeout,
-                       progress=lambda event: print(json.dumps(event, ensure_ascii=False), flush=True), config=config)
+                       progress=lambda event: print(json.dumps(event), flush=True), config=config)
     print(json.dumps({"stage": "complete", **result}), flush=True)
     if result["failed"]:
         raise SystemExit(1)

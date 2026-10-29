@@ -7,7 +7,7 @@ import re
 import zipfile
 import torch
 from safetensors import safe_open
-from .artifacts import sha256_file
+from .artifacts import SourceFileSnapshot
 
 
 def normalize_key(key):
@@ -18,7 +18,8 @@ def normalize_key(key):
 
 class SFTOverlay:
     def __init__(self, path, available_keys):
-        self.path = Path(path)
+        self.path = Path(path).absolute()
+        self.input_file = SourceFileSnapshot(self.path)
         self.reader = None
         if self.path.suffix == ".safetensors":
             self.reader = safe_open(str(self.path), framework="pt", device="cpu")
@@ -41,13 +42,17 @@ class SFTOverlay:
             self.map[normalized] = key
         if not self.map:
             raise ValueError("SFT checkpoint matches no transformer weights")
-        self.report = {"file": self.path.name, "sha256": sha256_file(self.path),
+        self.report = {"file": self.path.name, "sha256": self.input_file.sha256(),
                        "matched": len(self.map), "base_fallback": len(available_keys) - len(self.map),
                        "skipped": self.skipped}
+
+    def verify_unchanged(self):
+        self.input_file.verify_unchanged()
 
     def apply(self, key, base):
         if key not in self.map:
             return base
+        self.verify_unchanged()
         source_key = self.map[key]
         value = self.reader.get_tensor(source_key) if self.reader else self.state[source_key]
         if not isinstance(value, torch.Tensor) or value.shape != base.shape:
@@ -57,7 +62,9 @@ class SFTOverlay:
 
 class PeftOverlay:
     def __init__(self, directory, available_keys, scale=None):
-        directory = Path(directory)
+        directory = Path(directory).absolute()
+        self.config_file = SourceFileSnapshot(directory / "adapter_config.json")
+        self.weights_file = SourceFileSnapshot(directory / "adapter_model.safetensors")
         self.config = json.loads((directory / "adapter_config.json").read_text(encoding="utf-8"))
         if self.config.get("peft_type", "LORA") != "LORA" or self.config.get("use_dora"):
             raise ValueError("This converter accepts linear PEFT LoRA; DoRA/other adapter types require their own merge")
@@ -84,10 +91,14 @@ class PeftOverlay:
             raise ValueError("lora_scale must be finite")
         # Preserve the source's legacy rule: negative scale leaves PEFT's default scale unchanged.
         self.multiplier = scale if scale is not None and scale >= 0 else 1.0
-        self.report = {"file": "adapter_model.safetensors", "sha256": sha256_file(directory / "adapter_model.safetensors"),
-                       "config_sha256": sha256_file(directory / "adapter_config.json"),
+        self.report = {"file": "adapter_model.safetensors", "sha256": self.weights_file.sha256(),
+                       "config_sha256": self.config_file.sha256(),
                        "scale": scale, "effective_multiplier": self.multiplier,
                        "targets": sorted(self.pairs)}
+
+    def verify_unchanged(self):
+        self.config_file.verify_unchanged()
+        self.weights_file.verify_unchanged()
 
     def _pattern_value(self, name, module, default):
         patterns = self.config.get(name, {})
@@ -101,6 +112,7 @@ class PeftOverlay:
     def apply(self, key, base):
         if key not in self.pairs or self.multiplier == 0:
             return base
+        self.verify_unchanged()
         pair = self.pairs[key]
         a, b = self.reader.get_tensor(pair["A"]).float(), self.reader.get_tensor(pair["B"]).float()
         if base.ndim != 2 or a.ndim != 2 or b.ndim != 2 or b.shape[1] != a.shape[0] or (b.shape[0], a.shape[1]) != tuple(base.shape):
