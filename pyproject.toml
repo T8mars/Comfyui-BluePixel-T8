@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bluepixel-t8"
+version = "0.1.0"
+description = "Native ComfyUI BluePixel editing with split models and INT8 ConvRot conversion"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+readme = "README.md"
+dependencies = ["safetensors>=0.4.2", "diffusers>=0.40.0", "Pillow>=10.1.0", "numpy>=1.25.0", "huggingface_hub>=0.34.0", "filelock>=3.13.0", "comfy-kitchen>=0.2.35"]
+
+[project.urls]
+Repository = "https://github.com/T8mars/Comfyui-BluePixel-T8"
+Documentation = "https://github.com/T8mars/Comfyui-BluePixel-T8#readme"
+"Bug Tracker" = "https://github.com/T8mars/Comfyui-BluePixel-T8/issues"
+Models = "https://huggingface.co/t8star/BluePixel-Comfy"
+
+[tool.comfy]
+PublisherId = "t8star"
+DisplayName = "BluePixel T8"
+requires-comfyui = ">=0.43.0"
+
+[tool.setuptools.packages.find]
+include = ["bluepixel*"]
+exclude = ["tests*", ".research*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --import-mode=importlib"

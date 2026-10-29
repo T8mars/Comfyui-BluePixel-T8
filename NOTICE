@@ -1,0 +1,28 @@
+ComfyUI-BluePixel
+
+This repository contains integration and conversion code, not model weights.
+
+Primary sources:
+- vivo/BluePixel, code revision 3a39b77133b1e08d724a0f45b316ccfa5c3b2acc.
+  Its code is provided under Apache-2.0. Model materials also include separate
+  notices and an OpenAtom model license document.
+- openvivo/BluePixel-Turbo, model revision
+  e9c7a641a4bcd9851eef50c1ce9b07fa44f6044c.
+- Comfy-Org/ComfyUI, native model and node APIs, GPL-3.0-or-later.
+- Hugging Face Diffusers and Transformers, Apache-2.0.
+- Comfy-Org/comfy-kitchen, native INT8 ConvRot implementation, Apache-2.0.
+
+The Apache-2.0 license text for attributed source portions is included at
+docs/licenses/Apache-2.0.txt. Integration changes are marked by this project;
+the repository's own source license is GPL-3.0-or-later (see LICENSE).
+
+The upstream BluePixel NOTICE identifies FLUX.2 Klein base weights under a
+FLUX Non-Commercial License, while the Hugging Face card uses Apache-2.0
+metadata and the source repository contains additional model license material.
+Those statements have not been resolved into a single permission grant here.
+Preserve and review each component's original model terms before redistribution.
+This project's source license does not relicense the underlying weights.
+
+Qwen3 and DCAE attribution and terms remain those of their original authors.
+No source checkpoint, converted weight, local research, or private roadmap is
+included in the source distribution.

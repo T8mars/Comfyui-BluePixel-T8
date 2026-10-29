@@ -1,0 +1,14 @@
+# Registry archives contain runtime code, tools, workflows and user documentation.
+.github/
+tests/
+roadmap.md
+.research/
+models/
+dist/
+build/
+__pycache__/
+*.pyc
+*.safetensors
+*.ckpt
+*.pt
+*.pth

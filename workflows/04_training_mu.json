@@ -1,0 +1,843 @@
+{
+  "last_node_id": 16,
+  "last_link_id": 21,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "BluePixelDiffusionLoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelDiffusionLoader"
+      },
+      "widgets_values": [
+        "bluepixel_turbo_int8_convrot.safetensors",
+        "default",
+        false
+      ]
+    },
+    {
+      "id": 2,
+      "type": "BluePixelCLIPLoader",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelCLIPLoader"
+      },
+      "widgets_values": [
+        "bluepixel_qwen3_8b_original.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "BluePixelVAELoader",
+      "pos": [
+        880,
+        0
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            4,
+            20
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelVAELoader"
+      },
+      "widgets_values": [
+        "bluepixel_dcae_f64.safetensors",
+        true
+      ]
+    },
+    {
+      "id": 4,
+      "type": "LoadImage",
+      "pos": [
+        1320,
+        0
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "bluepixel_test_input.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "BluePixelPrepareImage",
+      "pos": [
+        0,
+        340
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "reference_image",
+          "type": "IMAGE",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "output_width",
+          "type": "INT",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "output_height",
+          "type": "INT",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "metadata",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelPrepareImage"
+      },
+      "widgets_values": [
+        16777216,
+        4096,
+        4096
+      ]
+    },
+    {
+      "id": 6,
+      "type": "BluePixelTextEncode",
+      "pos": [
+        440,
+        340
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "empty_instruction",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelTextEncode"
+      },
+      "widgets_values": [
+        "Change the gray sweater to burgundy red.",
+        512
+      ]
+    },
+    {
+      "id": 7,
+      "type": "VAEEncode",
+      "pos": [
+        880,
+        340
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEEncode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 8,
+      "type": "BluePixelEditConditioning",
+      "pos": [
+        1320,
+        340
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "reference",
+          "type": "LATENT",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            12
+          ]
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelEditConditioning"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 9,
+      "type": "BluePixelEmptyLatent",
+      "pos": [
+        0,
+        680
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "link": 8,
+          "widget": {
+            "name": "width"
+          }
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "link": 9,
+          "widget": {
+            "name": "height"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            10,
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelEmptyLatent"
+      },
+      "widgets_values": [
+        4096,
+        4096,
+        1
+      ]
+    },
+    {
+      "id": 10,
+      "type": "BluePixelScheduler",
+      "pos": [
+        440,
+        680
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            17
+          ]
+        },
+        {
+          "name": "schedule_metadata",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelScheduler"
+      },
+      "widgets_values": [
+        4,
+        "training",
+        0.0
+      ]
+    },
+    {
+      "id": 11,
+      "type": "BluePixelNoise",
+      "pos": [
+        880,
+        680
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "NOISE",
+          "type": "NOISE",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelNoise"
+      },
+      "widgets_values": [
+        42,
+        "fixed",
+        "upstream_cuda_bf16"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "BluePixelCFGGuider",
+      "pos": [
+        1320,
+        680
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 11
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 12
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "type": "GUIDER",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelCFGGuider"
+      },
+      "widgets_values": [
+        3.0
+      ]
+    },
+    {
+      "id": 13,
+      "type": "BluePixelEulerSampler",
+      "pos": [
+        0,
+        1020
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "BluePixelEulerSampler"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 14,
+      "type": "SamplerCustomAdvanced",
+      "pos": [
+        440,
+        1020
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "noise",
+          "type": "NOISE",
+          "link": 14
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 15
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 16
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 17
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "LATENT",
+          "links": [
+            19
+          ]
+        },
+        {
+          "name": "denoised_output",
+          "type": "LATENT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SamplerCustomAdvanced"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 15,
+      "type": "VAEDecode",
+      "pos": [
+        880,
+        1020
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 19
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 16,
+      "type": "SaveImage",
+      "pos": [
+        1320,
+        1020
+      ],
+      "size": [
+        390,
+        280
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 21
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "BluePixel/INT8_ConvRot"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      4,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      2,
+      0,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      3,
+      5,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      3,
+      0,
+      7,
+      1,
+      "VAE"
+    ],
+    [
+      5,
+      6,
+      0,
+      8,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      6,
+      6,
+      1,
+      8,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      7,
+      0,
+      8,
+      2,
+      "LATENT"
+    ],
+    [
+      8,
+      5,
+      1,
+      9,
+      0,
+      "INT"
+    ],
+    [
+      9,
+      5,
+      2,
+      9,
+      1,
+      "INT"
+    ],
+    [
+      10,
+      9,
+      0,
+      10,
+      0,
+      "LATENT"
+    ],
+    [
+      11,
+      1,
+      0,
+      12,
+      0,
+      "MODEL"
+    ],
+    [
+      12,
+      8,
+      0,
+      12,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      13,
+      8,
+      1,
+      12,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      14,
+      11,
+      0,
+      14,
+      0,
+      "NOISE"
+    ],
+    [
+      15,
+      12,
+      0,
+      14,
+      1,
+      "GUIDER"
+    ],
+    [
+      16,
+      13,
+      0,
+      14,
+      2,
+      "SAMPLER"
+    ],
+    [
+      17,
+      10,
+      0,
+      14,
+      3,
+      "SIGMAS"
+    ],
+    [
+      18,
+      9,
+      0,
+      14,
+      4,
+      "LATENT"
+    ],
+    [
+      19,
+      14,
+      0,
+      15,
+      0,
+      "LATENT"
+    ],
+    [
+      20,
+      3,
+      0,
+      15,
+      1,
+      "VAE"
+    ],
+    [
+      21,
+      15,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

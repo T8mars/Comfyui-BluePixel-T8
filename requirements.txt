@@ -1,0 +1,9 @@
+# Install into the Python environment used by ComfyUI. Torch is provided by ComfyUI.
+safetensors>=0.4.2
+diffusers>=0.40.0
+Pillow>=10.1.0
+numpy>=1.25.0
+huggingface_hub>=0.34.0
+filelock>=3.13.0
+# INT8 ConvRot uses ComfyUI's own comfy-kitchen integration (no private tensor ops).
+comfy-kitchen>=0.2.35

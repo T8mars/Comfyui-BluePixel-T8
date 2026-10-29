@@ -1,0 +1,17 @@
+# Local planning and upstream research; never publish these files.
+/roadmap.md
+/.research/
+/models/
+
+# Local model files and runtime artifacts.
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/

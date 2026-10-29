@@ -1,0 +1,10 @@
+include __init__.py bluepixel_nodes.py README.md README_EN.md LICENSE NOTICE requirements.txt .comfyignore
+recursive-include bluepixel *.py
+recursive-include tools *.py
+recursive-include workflows *.json
+recursive-include docs *.md *.txt
+prune .research
+prune .venv
+prune tests
+exclude roadmap.md
+global-exclude *.safetensors *.ckpt *.pt *.pth *.pyc
