@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -98,3 +99,23 @@ def test_wrong_vae_tiling_is_rejected_at_the_execution_entry(batch):
     with pytest.raises(ValueError, match="tiling differs"):
         run(batch)
     assert_not_started(batch)
+
+
+@pytest.mark.parametrize("label", ["diffusion", "text_encoder", "vae"])
+@pytest.mark.parametrize("alias", [False, True])
+def test_execution_cannot_write_metadata_over_component_file(batch, label, alias):
+    path = batch.paths[label]
+    if alias:
+        batch.output.mkdir()
+        target = batch.output / "metadata.jsonl"
+        os.link(path, target)
+    else:
+        batch.output = path.parent
+        target = path
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="must not overwrite"):
+        execution.run_tasks(batch.tasks, batch.output, *batch.components.values(),
+            batch.config["settings"], config=batch.config, metadata_file=target.name)
+    assert not batch.calls
+    assert path.read_bytes() == target.read_bytes() == original
+    assert not list((batch.output / "img").glob("*.png"))

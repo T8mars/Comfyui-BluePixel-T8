@@ -93,3 +93,17 @@ def test_unicode_progress_does_not_abort_with_legacy_stdout_encoding(cli_batch, 
     rows = [json.loads(line) for line in buffer.getvalue().decode("cp936").splitlines()]
     assert any(row.get("instruction") == instruction for row in rows)
     assert rows[-1]["stage"] == "complete" and rows[-1]["success"] == 1
+
+
+@pytest.mark.parametrize("label", ["diffusion", "text", "vae"])
+def test_cli_rejects_metadata_model_collision_before_loading(cli_batch, label):
+    root = cli_batch.source.parent
+    original = (root / label).read_bytes()
+    output_index = sys.argv.index("--out-dir") + 1
+    sys.argv[output_index] = str(root)
+    sys.argv.extend(["--metadata-file", label])
+    with pytest.raises(ValueError, match="must not overwrite"):
+        cli_batch.cli.main()
+    assert not cli_batch.loaded
+    assert (root / label).read_bytes() == original
+    assert not list((root / "img").glob("*.png"))

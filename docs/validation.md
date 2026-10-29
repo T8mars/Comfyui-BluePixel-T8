@@ -14,7 +14,7 @@
 
 ## 已执行的正确性检查
 
-- 完整单测236项通过（首次发布107项，v0.1.2新增17项，第二次复查新增30项，第三次新增20项，第四次新增22项，第五次新增29项，第六次新增11项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
+- 完整单测261项通过（首次发布107项，v0.1.2新增17项，第二次复查新增30项，第三次新增20项，第四次新增22项，第五次新增29项，第六次新增11项，第七次新增25项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
 - 3种scheduler × 6种token length × 4种steps逐项对照Diffusers，包含4300/4301分段与终点0。
 - 小型Flux2带参考图与四维IDs，Diffusers/ComfyUI CPU FP32前向：max abs `2.980232238769531e-7`，relative L2 `1.0175625675401534e-7`。
 - 全量INT8骨干前向finite；Profiler记录121次 `comfy_kitchen::int8_linear` 和121次 `aten::_int_mm`，峰值9,821,536,768 bytes。并非仅INT8存储或浮点模拟。
@@ -110,6 +110,16 @@ CLI实际碰撞测试确认在native Loader导入前报错，原始PNG和JSONL�
 | Windows大写或混合大小写SafeTensors扩展名走错SFT读取器 | 扩展名比较忽略大小写，继续使用SafeTensors读取；旧式与ZIP PyTorch checkpoint的安全加载保持兼容 |
 
 真实ComfyUI CPU的ModelPatcher和CLIP普通clone复现了旧版拒绝，修复后接受。原生扩散Loader另用单参数骨干替代完整分配，验证普通与独立权重克隆保留f64约定和加载精度，且拒绝错误精度。SFT使用真实小文件读写；数值、小转换链、并发与独立进程锁继续复核。本轮未加载完整模型、未重复4K生成，套件包含既有微型CUDA RoPE测试。现有三个模型与有效任务身份保持兼容。
+
+## v0.1.9 第七次20轮复查
+
+主 Agent 与独立子 Agent 完成第七次20轮检查，修复一类模型文件写入保护问题，新增25项回归，最终261项测试通过（34.22秒）。
+
+旧版只保护输入图片和源JSONL。使用模型目录作为输出目录，且metadata_file与某个模型文件重名时，CLI可加载组件后截断并重写模型文件，同时报告任务成功。临时小组件、真实CLI/TaskStore/PNG和模拟采样已复现，未修改实际模型权重。
+
+TaskStore现在支持protected_paths，逐次检查模型源的路径及inode别名，拒绝日志、PNG和内部done/锁/owner/config目标碰撞；空计划register_config也会检查。CLI在模型加载前传入三模型路径，执行和图入口从原组件或官方clone attachment取来源并采用相同保护。修复后的真实CLI探针保留源字节、Loader调用数为0、没有PNG；真实Comfy CPU节点入口三组件×执行/dry-run共6种碰撞也全部拒绝。
+
+回归包含直接路径、硬链接、执行入口、官方clone来源、工作目录改变及重复校验刷新。转换数值、小文件、并发与独立进程锁继续通过。本轮未加载完整模型、未重复4K生成，套件包含既有微型CUDA RoPE测试。现有模型与有效任务身份保持兼容。
 
 ## 完整编辑与BF16对照
 

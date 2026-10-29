@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from bluepixel.identity import file_stamp, mark_loaded, verify_loaded
+from bluepixel.identity import file_stamp, loaded_file_paths, mark_loaded, verify_loaded
 
 
 class Patcher:
@@ -69,3 +69,8 @@ def test_cloned_component_still_rejects_replaced_checkpoint(cloned_component):
 def test_unmarked_native_patcher_is_not_accepted():
     with pytest.raises(ValueError, match="Reload the BluePixel"):
         verify_loaded(Patcher().clone(), "0" * 64, "diffusion")
+
+
+def test_cloned_component_exposes_its_protected_model_file(cloned_component):
+    path, clone, _ = cloned_component
+    assert loaded_file_paths(object(), clone) == (str(path.resolve()),)

@@ -15,7 +15,7 @@ from .config import DEFAULT_PIXELS
 from .image import prepare_image, image_to_uint8
 from .scheduling import schedule_values
 from .tasks import TaskStore, plan_tasks, fingerprint, inference_config
-from .identity import verify_components
+from .identity import loaded_file_paths, verify_components
 from .conditioning import append_references
 
 
@@ -141,7 +141,7 @@ def _load_task_image(task):
 
 def run_tasks(tasks, output_dir, model, clip, vae, settings, resume=True,
               metadata_file="metadata.jsonl", lock_timeout=0, fail_fast=False, progress=None, config=None):
-    store = TaskStore(output_dir, metadata_file)
+    store = TaskStore(output_dir, metadata_file, protected_paths=loaded_file_paths(model, clip, vae))
     store.validate_task_paths(tasks)
     if config is not None:
         if config.get("pipeline_version") != 1:

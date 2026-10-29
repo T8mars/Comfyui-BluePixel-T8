@@ -32,7 +32,7 @@ def mark_loaded(component, path, before):
             (str(path), before, getattr(component, "bluepixel_load_dtype", None)))
 
 
-def verify_loaded(component, expected_hash, label, load_dtype=None):
+def _loaded_identity(component):
     path = getattr(component, "bluepixel_path", None)
     before = getattr(component, "bluepixel_file_stamp", None)
     dtype = getattr(component, "bluepixel_load_dtype", None)
@@ -41,6 +41,21 @@ def verify_loaded(component, expected_hash, label, load_dtype=None):
         saved = patcher.get_attachment(_IDENTITY_ATTACHMENT) if hasattr(patcher, "get_attachment") else None
         if saved is not None:
             path, before, dtype = saved
+    return path, before, dtype
+
+
+def loaded_file_paths(*components):
+    """Return known model sources, including those retained by native clones."""
+    paths = []
+    for component in components:
+        path, _, _ = _loaded_identity(component)
+        if path is not None:
+            paths.append(path)
+    return tuple(paths)
+
+
+def verify_loaded(component, expected_hash, label, load_dtype=None):
+    path, before, dtype = _loaded_identity(component)
     if path is None or before is None:
         raise ValueError(f"Reload the BluePixel {label} component before running this task plan")
     if load_dtype is not None and dtype != load_dtype:

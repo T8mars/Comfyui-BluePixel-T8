@@ -63,7 +63,8 @@ def main():
                  args.diffusion_dtype)
     seeds = [int(item.strip()) for item in args.seeds.split(",")] if args.seeds is not None else [args.seed]
     tasks = plan_tasks(args.jsonl, seeds, config, args.instruction_field, args.limit)
-    store = TaskStore(args.out_dir, args.metadata_file)
+    store = TaskStore(args.out_dir, args.metadata_file,
+                      protected_paths=(args.diffusion, args.text_encoder, args.vae))
     store.validate_task_paths(tasks)
     print(json.dumps({"stage": "plan", **store.status(tasks), "settings": settings}), flush=True)
     if args.dry_run or args.check:

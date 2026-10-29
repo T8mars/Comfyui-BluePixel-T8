@@ -157,8 +157,11 @@ def plan_tasks(jsonl_path, seeds, config, instruction_field="edit_prompt", limit
 
 
 class TaskStore:
-    def __init__(self, directory, metadata_file="metadata.jsonl"):
+    def __init__(self, directory, metadata_file="metadata.jsonl", *, protected_paths=()):
         self.directory = Path(directory).resolve()
+        # Keep logical absolute paths so a later symlink retarget or hardlink
+        # replacement is checked against the files present at each write.
+        self.protected_paths = tuple(Path(path).absolute() for path in protected_paths)
         filename = Path(metadata_file)
         folders = ("_locks", "_done", "_workers", "_configs", "img")
         if (not metadata_file or filename.name != metadata_file or filename.is_absolute()
@@ -190,6 +193,11 @@ class TaskStore:
             return cache[path]
 
         input_paths, input_inodes = set(), set()
+        for source in self.protected_paths:
+            path, inode = identity(source)
+            input_paths.add(path)
+            if inode is not None:
+                input_inodes.add(inode)
         for task in tasks:
             for source in (task.image_path, getattr(task, "source_jsonl", None),
                            *getattr(task, "input_aliases", ())):
@@ -206,7 +214,7 @@ class TaskStore:
 
         metadata_identity = identity(self.metadata)
         if overlaps_input(metadata_identity):
-            raise ValueError("Batch metadata must not overwrite an input image or source JSONL")
+            raise ValueError("Batch metadata must not overwrite an input image, source JSONL or model file")
         internal = {self.directory / "_locks" / "metadata.lock"}
         for task in tasks:
             lock = self.directory / "_locks" / (task.task_id + ".lock")
@@ -214,7 +222,7 @@ class TaskStore:
                              self.directory / "_configs" / (task.config_fingerprint + ".json")))
         internal_identities = [identity(path) for path in internal]
         if any(overlaps_input(value) for value in internal_identities):
-            raise ValueError("Batch internal state must not overwrite an input image or source JSONL")
+            raise ValueError("Batch internal state must not overwrite an input image, source JSONL or model file")
         internal_paths = {path for path, _ in internal_identities}
         internal_inodes = {inode for _, inode in internal_identities if inode is not None}
 
@@ -227,7 +235,7 @@ class TaskStore:
         for output in [*(self.output_path(task) for task in tasks), *outputs]:
             output_identity = identity(output)
             if overlaps_input(output_identity):
-                raise ValueError("Batch output must not overwrite an input image or source JSONL")
+                raise ValueError("Batch output must not overwrite an input image, source JSONL or model file")
             if (output_identity[0] == metadata_identity[0] or
                     output_identity[1] is not None and output_identity[1] == metadata_identity[1]):
                 raise ValueError("Batch metadata and output paths must be different")
@@ -237,6 +245,7 @@ class TaskStore:
     def register_config(self, config):
         identity = fingerprint(config)
         path = self.directory / "_configs" / (identity + ".json")
+        self.validate_task_paths((), outputs=[path])
         record = {"config_fingerprint": identity, "config": config}
         if path.exists():
             if json.loads(path.read_text(encoding="utf-8")) != record:

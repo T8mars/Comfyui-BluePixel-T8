@@ -349,12 +349,14 @@ class BluePixelBatchRun:
             metadata_file="metadata.jsonl", lock_timeout=0.0):
         from .bluepixel.tasks import TaskStore
         from .bluepixel.execution import run_tasks
+        from .bluepixel.identity import loaded_file_paths
         directory = Path(output_dir)
         if not directory.is_absolute():
             directory = Path(folder_paths.get_output_directory()) / directory
-        TaskStore(directory, metadata_file).validate_task_paths(plan["tasks"])
+        store = TaskStore(directory, metadata_file, protected_paths=loaded_file_paths(model, clip, vae))
+        store.validate_task_paths(plan["tasks"])
         if dry_run:
-            result = {"dry_run": True, **TaskStore(directory, metadata_file).status(plan["tasks"])}
+            result = {"dry_run": True, **store.status(plan["tasks"])}
         else:
             result = run_tasks(plan["tasks"], directory, model, clip, vae, plan["settings"],
                                resume, metadata_file, lock_timeout, config=plan["config"])
