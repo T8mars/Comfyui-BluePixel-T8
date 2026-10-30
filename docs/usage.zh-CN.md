@@ -2,7 +2,7 @@
 
 BluePixel 原生图像编辑节点与分体模型转换工具。扩散主模型支持 ComfyUI 原生 **INT8 ConvRot**；Qwen3 文本编码器和 DCAE-F64 自编码器独立加载，默认保留原始精度。
 
-已完成公开推理功能的原生适配，实测完整 INT8 模型、1K/4096×4096 编辑、8组官方API工作流和高级输入。功能范围见[覆盖清单](function-coverage.md)，性能与量化误差见[验证记录](validation.md)，不以单张样例代表全部任务画质。
+已完成公开推理功能的原生适配，实测完整 INT8 模型、1K/4096×4096 编辑、8条完整推理链和高级输入。交付文件只保留画布工作流。功能范围见[覆盖清单](function-coverage.md)，性能与量化误差见[验证记录](validation.md)，不以单张样例代表全部任务画质。
 
 ## 模型与数据口
 
@@ -63,7 +63,7 @@ PEFT 目录需 `adapter_config.json` 和 `adapter_model.safetensors`。支持普
 
 ## 工作流
 
-`workflows/` 同时提供可编辑 UI JSON 和 API JSON：
+`workflows/` 仅提供可编辑的画布 JSON；下载文件本身后拖入画布，或按Ctrl+O打开。GitHub页面请通过Raw下载，或直接解压Release安装包中的workflows目录。不要把网页HTML另存为JSON。
 
 - `01_edit_4k_int8_convrot`：明确输出 4096×4096，4 步、CFG 3、seed 42。
 - `02_edit_1k_preview`：1024×1024 预览。

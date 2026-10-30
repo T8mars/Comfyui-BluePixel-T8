@@ -1,4 +1,6 @@
 {
+  "id": "37b9cfb5-0ef8-58b6-b426-2834c2c0f580",
+  "revision": 0,
   "last_node_id": 16,
   "last_link_id": 13,
   "nodes": [
@@ -23,11 +25,13 @@
           "type": "MODEL",
           "links": [
             3
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelDiffusionLoader"
+        "Node name for S&R": "BluePixelDiffusionLoader",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         "bluepixel_turbo_int8_convrot.safetensors",
@@ -56,11 +60,13 @@
           "type": "CLIP",
           "links": [
             1
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelCLIPLoader"
+        "Node name for S&R": "BluePixelCLIPLoader",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         "bluepixel_qwen3_8b_original.safetensors",
@@ -88,11 +94,13 @@
           "type": "VAE",
           "links": [
             12
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelVAELoader"
+        "Node name for S&R": "BluePixelVAELoader",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         "bluepixel_dcae_f64.safetensors",
@@ -126,22 +134,26 @@
           "type": "CONDITIONING",
           "links": [
             4
-          ]
+          ],
+          "slot_index": 0
         },
         {
           "name": "empty_instruction",
           "type": "CONDITIONING",
           "links": [
             5
-          ]
+          ],
+          "slot_index": 1
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelTextEncode"
+        "Node name for S&R": "BluePixelTextEncode",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         "A cozy cabin beside a forest lake at sunrise.",
-        512
+        512,
+        "9,18,27"
       ]
     },
     {
@@ -166,11 +178,13 @@
           "links": [
             2,
             10
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelEmptyLatent"
+        "Node name for S&R": "BluePixelEmptyLatent",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         1024,
@@ -205,16 +219,19 @@
           "type": "SIGMAS",
           "links": [
             9
-          ]
+          ],
+          "slot_index": 0
         },
         {
           "name": "schedule_metadata",
           "type": "STRING",
-          "links": []
+          "links": [],
+          "slot_index": 1
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelScheduler"
+        "Node name for S&R": "BluePixelScheduler",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         4,
@@ -243,11 +260,13 @@
           "type": "NOISE",
           "links": [
             6
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelNoise"
+        "Node name for S&R": "BluePixelNoise",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         42,
@@ -292,11 +311,13 @@
           "type": "GUIDER",
           "links": [
             7
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelCFGGuider"
+        "Node name for S&R": "BluePixelCFGGuider",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": [
         3.0
@@ -323,11 +344,13 @@
           "type": "SAMPLER",
           "links": [
             8
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "BluePixelEulerSampler"
+        "Node name for S&R": "BluePixelEulerSampler",
+        "cnr_id": "bluepixel-t8"
       },
       "widgets_values": []
     },
@@ -378,12 +401,14 @@
           "type": "LATENT",
           "links": [
             11
-          ]
+          ],
+          "slot_index": 0
         },
         {
           "name": "denoised_output",
           "type": "LATENT",
-          "links": []
+          "links": [],
+          "slot_index": 1
         }
       ],
       "properties": {
@@ -423,7 +448,8 @@
           "type": "IMAGE",
           "links": [
             13
-          ]
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
@@ -452,7 +478,14 @@
           "link": 13
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
       "properties": {
         "Node name for S&R": "SaveImage"
       },
@@ -569,6 +602,14 @@
   ],
   "groups": [],
   "config": {},
-  "extra": {},
+  "extra": {
+    "ds": {
+      "scale": 0.65,
+      "offset": [
+        40,
+        60
+      ]
+    }
+  },
   "version": 0.4
 }

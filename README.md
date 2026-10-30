@@ -12,7 +12,7 @@
 - 返回标准 `MODEL`、`CLIP`、`VAE`、`CONDITIONING` 等接口，支持 `SamplerCustomAdvanced`。
 - 单图编辑、多参考图、比例保持、调度设置、种子批量与 JSONL 断点续跑。
 - 提供 SFT / PEFT LoRA 合并转换、外部文本条件、噪声和 latent 输入接口。
-- 8 组工作流，每组同时提供 UI JSON 和 API JSON。
+- 8 个可拖入 ComfyUI 的画布 JSON 工作流。
 
 ## 安装
 
@@ -41,7 +41,7 @@ python -m pip install -r requirements.txt
 
 ## 使用
 
-1. 导入 [1K 预览工作流](workflows/02_edit_1k_preview.json) 或 [4K 编辑工作流](workflows/01_edit_4k_int8_convrot.json)。
+1. 下载 [1K 预览画布](workflows/02_edit_1k_preview.json) 或 [4K 编辑画布](workflows/01_edit_4k_int8_convrot.json) 的 JSON 文件，拖入 ComfyUI 画布，或按 **Ctrl+O** 打开。详细方法见[工作流说明](workflows/README.md)。
 2. 选择三个模型和输入图片，填写编辑指令。
 3. 以 **4 步、CFG 3** 开始，运行工作流。4K 示例显式输出 4096×4096。
 
@@ -49,7 +49,7 @@ python -m pip install -r requirements.txt
 
 ## 验证与许可
 
-已完成 261 项单测、8/8 API 工作流执行、实际 4096×4096 编辑，以及文本编码 / VAE 对照。INT8 是有损量化；速度、显存与画质随硬件和任务变化。测试条件与误差见[验证记录](docs/validation.md)，公开推理功能范围见[覆盖清单](docs/function-coverage.md)。
+已完成模型与采样单测、8 条完整推理链、实际 4096×4096 编辑，以及文本编码 / VAE 对照；画布文件另有格式与连线检查。INT8 是有损量化；速度、显存与画质随硬件和任务变化。测试条件与误差见[验证记录](docs/validation.md)，公开推理功能范围见[覆盖清单](docs/function-coverage.md)。
 
 节点代码使用 [GPL-3.0-or-later](LICENSE)。模型保留各上游许可，FLUX.2 Klein 9B 衍生权重受 FLUX 非商业许可约束；本项目不重新授权模型。详见 [NOTICE](NOTICE) 和[模型许可](https://huggingface.co/t8star/BluePixel-Comfy/blob/main/LICENSE.md)。
 

@@ -30,6 +30,8 @@ def main():
         with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(files):
                 relative = path.relative_to(root)
+                if relative.parts[0] == "workflows" and relative.name.endswith(".api.json"):
+                    raise ValueError(f"Only canvas workflows may be packaged: {relative}")
                 if relative.name == "roadmap.md" or any(part in {".research", "models", ".git"} for part in relative.parts):
                     raise ValueError(f"Private entry in source package: {relative}")
                 if not path.resolve().is_relative_to(root):

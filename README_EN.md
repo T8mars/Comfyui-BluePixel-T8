@@ -12,7 +12,7 @@ A native ComfyUI integration for [BluePixel-Turbo](https://github.com/vivo/BlueP
 - Standard `MODEL`, `CLIP`, `VAE` and `CONDITIONING` interfaces, including `SamplerCustomAdvanced` support.
 - Single-image and multiple-reference editing, aspect-ratio preservation, scheduling options, seed batches and resumable JSONL jobs.
 - Conversion with SFT / PEFT LoRA merging; external text conditioning, noise and latent inputs.
-- Eight example workflows, each supplied as UI JSON and API JSON.
+- Eight editable canvas JSON workflows for ComfyUI.
 
 ## Installation
 
@@ -41,7 +41,7 @@ Use this package's three **BluePixel Loader** nodes, then connect their outputs 
 
 ## Usage
 
-1. Import the [1K preview](workflows/02_edit_1k_preview.json) or [4K editing](workflows/01_edit_4k_int8_convrot.json) workflow.
+1. Download the JSON file for [1K preview](workflows/02_edit_1k_preview.json) or [4K editing](workflows/01_edit_4k_int8_convrot.json), then drop the local file onto the canvas or open it with **Ctrl+O**. See the [workflow guide](workflows/README.md).
 2. Select all three models and an input image, then enter an editing instruction.
 3. Start with **4 steps and CFG 3**. The 4K example explicitly outputs 4096×4096.
 
@@ -49,7 +49,7 @@ Other examples cover aspect-ratio preservation, training μ, fixed shift, multip
 
 ## Validation and licensing
 
-Validated with 261 unit tests, 8/8 executed API workflows, an actual 4096×4096 edit, and text-encoder / VAE comparisons. INT8 quantization is lossy. Speed, memory use and output quality depend on hardware and task; see [validation](docs/validation.md) and the [public inference feature coverage](docs/function-coverage.md).
+Validation covers model and sampler tests, eight complete inference paths, an actual 4096×4096 edit, and text-encoder / VAE comparisons. Canvas files have separate schema and connection checks. INT8 quantization is lossy. Speed, memory use and output quality depend on hardware and task; see [validation](docs/validation.md) and the [public inference feature coverage](docs/function-coverage.md).
 
 Node code is [GPL-3.0-or-later](LICENSE). Model weights retain their upstream terms, including the FLUX Non-Commercial License for FLUX.2 Klein 9B derivatives. This project does not relicense the weights. See [NOTICE](NOTICE) and the [model license](https://huggingface.co/t8star/BluePixel-Comfy/blob/main/LICENSE.md).
 

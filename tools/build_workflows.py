@@ -1,8 +1,9 @@
-"""Generate API and editable UI versions of the native BluePixel workflows."""
+"""Generate editable ComfyUI canvas workflows."""
 
 from copy import deepcopy
 import json
 from pathlib import Path
+from uuid import NAMESPACE_URL, uuid5
 
 
 def workflow():
@@ -37,25 +38,45 @@ OUTPUTS = {
     "KSamplerSelect": [("SAMPLER", "SAMPLER")], "SamplerCustomAdvanced": [("output", "LATENT"), ("denoised_output", "LATENT")],
     "BluePixelEulerSampler": [("SAMPLER", "SAMPLER")],
     "BluePixelSeedListNoise": [("NOISE", "NOISE")],
-    "VAEDecode": [("IMAGE", "IMAGE")], "SaveImage": [],
+    "VAEDecode": [("IMAGE", "IMAGE")], "SaveImage": [("images", "IMAGE")],
 }
 
 
-def to_ui(graph):
+WIDGETS = {
+    "BluePixelDiffusionLoader": [("model_name", ""), ("dtype", "default"), ("disable_dynamic", False)],
+    "BluePixelCLIPLoader": [("model_name", ""), ("device", "default")],
+    "BluePixelVAELoader": [("model_name", ""), ("tiling", True)],
+    "LoadImage": [("image", "")],
+    "BluePixelPrepareImage": [("target_pixels", 16777216), ("output_width", 0), ("output_height", 0)],
+    "BluePixelTextEncode": [("instruction", ""), ("max_sequence_length", 512), ("hidden_layers", "9,18,27")],
+    "BluePixelEmptyLatent": [("width", 1024), ("height", 1024), ("batch_size", 1)],
+    "BluePixelScheduler": [("steps", 4), ("mu_mode", "empirical"), ("shift", 0.0)],
+    "BluePixelNoise": [("seed", 42), ("mode", "upstream_cuda_bf16")],
+    "BluePixelCFGGuider": [("guidance", 3.0)],
+    "BluePixelSeedListNoise": [("seeds", "42,43"), ("mode", "upstream_cuda_bf16")],
+    "SaveImage": [("filename_prefix", "BluePixel")],
+}
+
+
+def to_ui(graph, workflow_name="bluepixel"):
     nodes, lookup, links = [], {}, []
     for order, (node_id, specification) in enumerate(graph.items()):
-        outputs = [{"name": name, "type": kind, "links": []} for name, kind in OUTPUTS[specification["class_type"]]]
+        outputs = [{"name": name, "type": kind, "links": [], "slot_index": slot}
+                   for slot, (name, kind) in enumerate(OUTPUTS[specification["class_type"]])]
         node = {"id": int(node_id), "type": specification["class_type"],
                 "pos": [(order % 4) * 440, (order // 4) * 340], "size": [390, 280],
                 "flags": {}, "order": order, "mode": 0, "inputs": [], "outputs": outputs,
                 "properties": {"Node name for S&R": specification["class_type"]}, "widgets_values": []}
-        for name, value in specification["inputs"].items():
-            if not isinstance(value, list):
-                node["widgets_values"].append(value)
-                if name == "seed":
-                    node["widgets_values"].append("fixed")
-            elif specification["class_type"] == "BluePixelEmptyLatent" and name in {"width", "height"}:
-                node["widgets_values"].append(4096)
+        if specification["class_type"].startswith("BluePixel"):
+            node["properties"]["cnr_id"] = "bluepixel-t8"
+        for widget_name, default in WIDGETS.get(specification["class_type"], []):
+            value = specification["inputs"].get(widget_name, default)
+            if isinstance(value, list):
+                source = graph[value[0]]["inputs"]
+                value = source.get("output_" + widget_name, default) or default
+            node["widgets_values"].append(value)
+            if widget_name == "seed":
+                node["widgets_values"].append("fixed")
         if specification["class_type"] == "LoadImage":
             node["widgets_values"].append("image")
         nodes.append(node)
@@ -73,8 +94,10 @@ def to_ui(graph):
             if specification["class_type"] == "BluePixelEmptyLatent" and name in {"width", "height"}:
                 node["inputs"][-1]["widget"] = {"name": name}
             output["links"].append(link_id)
-    return {"last_node_id": max(int(key) for key in graph), "last_link_id": len(links),
-            "nodes": nodes, "links": links, "groups": [], "config": {}, "extra": {}, "version": 0.4}
+    return {"id": str(uuid5(NAMESPACE_URL, "https://github.com/T8mars/Comfyui-BluePixel-T8/" + workflow_name)),
+            "revision": 0, "last_node_id": max(int(key) for key in graph), "last_link_id": len(links),
+            "nodes": nodes, "links": links, "groups": [], "config": {},
+            "extra": {"ds": {"scale": 0.65, "offset": [40, 60]}}, "version": 0.4}
 
 
 def main():
@@ -114,9 +137,8 @@ def main():
     batch["11"] = {"class_type": "BluePixelSeedListNoise", "inputs": {"seeds": "42,43", "mode": "upstream_cuda_bf16"}}
     versions["08_seed_list_batch"] = batch
     for name, graph in versions.items():
-        (directory / (name + ".api.json")).write_text(json.dumps(graph, indent=2) + "\n", encoding="utf-8")
-        (directory / (name + ".json")).write_text(json.dumps(to_ui(graph), indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"workflows": len(versions), "files": len(versions) * 2}))
+        (directory / (name + ".json")).write_text(json.dumps(to_ui(graph, name), indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({"canvas_workflows": len(versions), "files": len(versions)}))
 
 
 if __name__ == "__main__":

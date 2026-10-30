@@ -7,4 +7,4 @@ prune .research
 prune .venv
 prune tests
 exclude roadmap.md
-global-exclude *.safetensors *.ckpt *.pt *.pth *.pyc
+global-exclude *.safetensors *.ckpt *.pt *.pth *.pyc *.api.json

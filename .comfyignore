@@ -6,6 +6,7 @@ tools/verify_*.py
 tools/compare_edits.py
 tools/build_workflows.py
 tools/run_smoke.py
+workflows/*.api.json
 roadmap.md
 .research/
 models/
