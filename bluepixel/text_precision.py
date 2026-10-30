@@ -19,9 +19,26 @@ def reference_frequencies(head_dim, theta, position_ids, device):
     return cos, sin[..., :half], -sin[..., half:]
 
 
+def _dispatch_sdpa(query, key, value, **kwargs):
+    mask = kwargs.get("attn_mask")
+    if mask is not None and mask.is_floating_point() and mask.dtype != query.dtype:
+        mask = kwargs["attn_mask"] = mask.to(query.dtype)
+    try:
+        return torch.nn.functional.scaled_dot_product_attention(query, key, value, **kwargs)
+    except RuntimeError as error:
+        # Some backends promote Q/K/V internally but leave a BF16/FP16 mask
+        # behind. Retry only that dtype error; native CUDA biases retain their
+        # original matching dtype and unrelated failures propagate unchanged.
+        if (mask is None or mask.dtype not in {torch.float16, torch.bfloat16}
+                or "Expected attn_mask dtype" not in str(error)):
+            raise
+        kwargs["attn_mask"] = mask.float()
+        return torch.nn.functional.scaled_dot_product_attention(query, key, value, **kwargs)
+
+
 def reference_sdpa(query, key, value, **kwargs):
     if not query.is_cuda:
-        return torch.nn.functional.scaled_dot_product_attention(query, key, value, **kwargs)
+        return _dispatch_sdpa(query, key, value, **kwargs)
     # Match PyTorch's source SDPA accumulation while retaining its native BF16
     # tensor path. Restore the host preference even when dispatch raises.
     with _SDPA_PRECISION_LOCK:
@@ -29,7 +46,7 @@ def reference_sdpa(query, key, value, **kwargs):
         try:
             if previous:
                 torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(False)
-            return torch.nn.functional.scaled_dot_product_attention(query, key, value, **kwargs)
+            return _dispatch_sdpa(query, key, value, **kwargs)
         finally:
             if previous:
                 torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(previous)

@@ -32,6 +32,8 @@ Torch 由宿主 ComfyUI 提供，本插件不在加载时安装/替换 Torch。�
 
 CUDA 模型推理与高效 INT8 kernel 的实际可用性还依赖 Torch、comfy-kitchen 和显卡。诊断输出会保留原生/模拟算子情况，不把 INT8 存储等同于提速保证。
 
+如果出现 `Expected attn_mask dtype ... BFloat16 ... query.dtype: float`，请更新插件至v0.1.11或更新版本，并完全重启ComfyUI以重新建立文本编码器实例；模型文件无需更换。该版本对BluePixel文本注意力的浮点掩码做类型校验，并针对后端内部提升Q/K/V的同类dtype错误兼容重试。若仍报错，请同时提供节点名称、完整Traceback、显卡及Torch版本，以确认是否来自其它注意力路径。
+
 ## 下载与转换
 
 先下载固定版本的官方快照，或使用已有本地快照：

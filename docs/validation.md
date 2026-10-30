@@ -14,7 +14,7 @@
 
 ## 已执行的正确性检查
 
-- 完整单测261项通过（首次发布107项，v0.1.2新增17项，第二次复查新增30项，第三次新增20项，第四次新增22项，第五次新增29项，第六次新增11项，第七次新增25项回归）。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
+- 截至v0.1.11，完整单测282项通过；历次增量见下文。覆盖流式原子文件、key/shape、QKV融合、最终调制顺序、ConvRot数学、SFT/PEFT合并、调度、尺寸、内容身份、锁/恢复、packed坐标、逐图seed、step-end回调、backend偏好恢复、RoPE舍入回归、完整配置追溯与链式参考路由。
 - 3种scheduler × 6种token length × 4种steps逐项对照Diffusers，包含4300/4301分段与终点0。
 - 小型Flux2带参考图与四维IDs，Diffusers/ComfyUI CPU FP32前向：max abs `2.980232238769531e-7`，relative L2 `1.0175625675401534e-7`。
 - 全量INT8骨干前向finite；Profiler记录121次 `comfy_kitchen::int8_linear` 和121次 `aten::_int_mm`，峰值9,821,536,768 bytes。并非仅INT8存储或浮点模拟。
@@ -128,6 +128,14 @@ TaskStore现在支持protected_paths，逐次检查模型源的路径及inode别
 新增6项画布回归通过；使用本机官方前端1.55.18自带源码中的validateComfyWorkflow校验8/8通过，使用实际ComfyUI节点定义核对128个节点、166条连线通过。原261项模型/任务单测结果来自v0.1.9，本次没有重新运行完整模型测试或GPU生成。以下完整推理记录来自此前发布，不代表本次完成了画布拖拽验收。
 
 本次界面测试受工具限制：Chrome窗口句柄连续变化，无法稳定绑定；当前宿主无可用内置浏览器。因此未完成可视拖拽操作，不将schema与节点定义校验表述为真实界面验收。
+
+## v0.1.11 注意力掩码dtype兼容（2026-10-30）
+
+针对用户在其它电脑遇到的BF16 attn_mask与FP32 query冲突，真实PyTorch小张量复现了相同报错。文本SDPA入口先将浮点mask对齐到query类型；正常CUDA路径保留匹配的BF16 bias，仅在捕获确切的attn_mask dtype RuntimeError时，将低精度浮点mask提升为FP32重试一次，以兼容后端内部提升Q/K/V的情形。布尔mask语义、其它错误传播及宿主精度偏好恢复保持原行为，不修改全局注意力函数。
+
+新增15项回归，覆盖CPU/CUDA、FP32/BF16 query、FP16/BF16 mask、布尔mask、模拟后端提升及其它异常不重试；原生BF16小张量结果在CPU/CUDA均与之前逐值一致。使用真实Comfy Attention/RMSNorm和16维CPU模型完成绑定与前向检查，模拟FP32后端返回有限值。完整282项测试通过（13.02秒），其中包含此前6项画布回归；仍只交付8个画布工作流。
+
+用户后续提供的云端Traceback已确认节点6 BluePixel TextEncode，经source_attention进入插件的reference_sdpa。日志显示的scores调用行与当前公开版本不同，因此云端需要同步更新节点代码并重启ComfyUI进程。本次未访问云端实例、未加载完整模型或重做4K生成；上述本地CPU/CUDA证据不代表已经在用户云端复测成功。无需重新下载权重。
 
 ## 完整编辑与BF16对照
 
